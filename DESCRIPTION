@@ -1,0 +1,56 @@
+Package: learncrimemapping
+Type: Package
+Title: Learn Crime Mapping with R
+Version: 1.0.0
+Authors@R: c(
+    person(
+      "Matthew", "Ashby", 
+      email = "matthew.ashby@ucl.ac.uk",
+      role = c("aut", "cre", "cph"), 
+      comment = c(ORCID = "0000-0003-4201-9239")
+    )
+  )
+Description: Package of utility functions to support learners using the book
+    Learn Crime Mapping with R.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+URL: http://books.lesscrime.info/learncrimemapping/, https://github.com/mpjashby/learncrimemapping
+BugReports: https://github.com/mpjashby/learncrimemapping/issues
+Imports: 
+    cli,
+    crsuggest,
+    dplyr,
+    gganimate,
+    ggimage,
+    ggrepel,
+    ggridges,
+    ggspatial,
+    ggthemes,
+    gt,
+    here,
+    htmltools,
+    janitor,
+    knitr,
+    leaflet,
+    lintr,
+    osmdata,
+    pacman,
+    patchwork,
+    prettymapr,
+    raster,
+    RColorBrewer,
+    reprex,
+    rlang,
+    rnaturalearth,
+    scales,
+    sf,
+    sfhotspot,
+    slider,
+    terra,
+    tibble,
+    tidygeocoder,
+    tidyverse,
+    transformr,
+    utils
+RoxygenNote: 7.3.2
