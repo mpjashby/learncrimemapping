@@ -4,20 +4,58 @@
 \alias{check_code}
 \title{Check code file before submission}
 \usage{
-check_code(file = NULL, reprex = TRUE, style = TRUE)
+check_code(
+  file = NULL,
+  reprex = TRUE,
+  style = TRUE,
+  execution_dir = NULL,
+  timeout = 600
+)
 }
 \arguments{
-\item{file}{A file path for the .R file to check, or \code{NULL} to choose a
-file using the standard system file select dialog box}
+\item{file}{A path to an \code{.R}, \code{.Rmd}, or \code{.qmd} file, or \code{NULL} to choose
+a file interactively.}
 
-\item{reprex}{Should the code be checked for errors?}
+\item{reprex}{Should the code be executed to check for errors and warnings?
+This argument is retained for compatibility; execution uses callr and
+evaluate rather than reprex.}
 
-\item{style}{Should the code be checked for style issues?}
+\item{style}{Should the code be checked for style and other static issues?}
+
+\item{execution_dir}{An optional execution directory. By default, search
+upwards from the submitted file for an RStudio or Quarto project, using
+the file's directory if no project is found.}
+
+\item{timeout}{Maximum execution time in seconds, defaulting to 600 (ten
+minutes). Must be a positive finite number.}
 }
 \value{
-NULL, invisibly
+Invisibly, a list containing the original file, execution directory,
+execution status and captured events, lint results, check failures,
+report path, and checker dependency versions. Execution status is one of
+\code{skipped}, \code{success}, \code{error}, \code{timeout}, or \code{failed}. Reports and plots
+are temporary and last for the current R session.
 }
 \description{
-Check your code to identify various common issues with code content, code
-style, etc.
+Check an R script or the enabled R chunks of an R Markdown or Quarto
+document in a separate R session, then report potential problems and
+suggestions using a consistent course style configuration.
+}
+\details{
+Execution stops at the first error. Static checks can still run
+after execution fails or times out. An isolated R session avoids relying
+on objects in the student's workspace, but code can still read and write
+files and access the network. Personal startup profiles are not loaded;
+the current package library paths are passed to the child session.
+
+For documents, extracted R code is checked, rather than rendering the
+document. Inline expressions and chunks explicitly marked \code{eval = FALSE}
+(including Quarto's \verb{#| eval: false}) are excluded from both stages.
+Dynamic chunk options, child documents, and document rendering settings
+are not reproduced. Locations refer to the original file. Runtime
+locations identify the start of the executing expression, rather than
+the precise failing statement within a function.
+
+Local lintr configuration is ignored. Findings are suggestions, not a
+guarantee of correctness or an assessment grade.
 }

@@ -1,7 +1,7 @@
 Package: learncrimemapping
 Type: Package
 Title: Learn Crime Mapping with R
-Version: 1.0.0
+Version: 2.0.0
 Authors@R: c(
     person(
       "Matthew", "Ashby", 
@@ -17,40 +17,18 @@ Encoding: UTF-8
 LazyData: true
 URL: http://books.lesscrime.info/learncrimemapping/, https://github.com/mpjashby/learncrimemapping
 BugReports: https://github.com/mpjashby/learncrimemapping/issues
+Depends: R (>= 4.1.0)
 Imports: 
-    cli,
-    crsuggest,
-    dplyr,
-    gganimate,
-    ggimage,
-    ggrepel,
-    ggridges,
-    ggspatial,
-    ggthemes,
-    gt,
-    here,
-    htmltools,
-    janitor,
-    knitr,
-    leaflet,
-    lintr,
-    osmdata,
-    pacman,
-    patchwork,
-    prettymapr,
-    raster,
-    RColorBrewer,
-    reprex,
-    rlang,
-    rnaturalearth,
-    scales,
-    sf,
-    sfhotspot,
-    slider,
-    terra,
-    tibble,
-    tidygeocoder,
-    tidyverse,
-    transformr,
-    utils
-RoxygenNote: 7.3.2
+    callr (>= 3.7.0), cli, colorblindr, conflicted, crsuggest, cyclocomp, dplyr,
+    evaluate (>= 1.0.0), gganimate, ggauto, ggplot2, ggrepel, ggridges, ggspatial,
+    ggthemes, gifski (>= 1.4.3), gt, here, htmltools, httr2,
+    janitor, knitr, leaflet, lintr (>= 3.4.0), lubridate,
+    osmdata, pacman, paletteer, patchwork, prettymapr, raster,
+    RColorBrewer, readxl, remotes, reprex, rlang, rmarkdown, rprojroot (>= 2.0.4),
+    rnaturalearth (>= 1.2.0), scales, sf, sfhotspot, slider,
+    stringr, tibble, tidygeocoder, tidyverse (>= 2.0.0),
+    tinytex, usethis (>= 3.2.0), utils
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.1.0
