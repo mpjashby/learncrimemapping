@@ -76,7 +76,8 @@ check_workspace <- function(workspace = NULL, check_updates = TRUE) {
   report_div <- cli::cli_div(
     theme = list(
       ".workspace-pass" = list(color = "green", "font-weight" = "normal"),
-      ".workspace-problem" = list(color = "#8B0000", "font-weight" = "bold")
+      ".workspace-problem" = list(color = "#8B0000", "font-weight" = "bold"),
+      ".workspace-manual" = list(color = "orange", "font-weight" = "normal")
     ), .auto_close = FALSE
   )
   on.exit(cli::cli_end(report_div), add = TRUE)
@@ -106,7 +107,10 @@ check_workspace <- function(workspace = NULL, check_updates = TRUE) {
     "select that command, and select crime_mapping if prompted."
   )
   cli::cli_h1("Checking your crime mapping setup")
-  cli::cli_text("This report only reads your setup. Suggested code is for you to run.")
+  cli::cli_text("This tool will check whether your computer is set up correctly for the Crime Mapping course. This report only reads your setup. Suggested code is for you to run.")
+  cli::cli_text("For the original instructions in Learn Crime Mapping with R, see:")
+  cli::cli_text("Install the software needed for this book: {.url https://books.lesscrime.info/learncrimemapping/setup.html}")
+  cli::cli_text("Getting started: {.url https://books.lesscrime.info/learncrimemapping/01_getting_started/}")
   cli::cli_h2("R and Positron")
   os <- workspace_os()
   r_version <- as.character(getRversion())
@@ -153,10 +157,9 @@ check_workspace <- function(workspace = NULL, check_updates = TRUE) {
       if (isTRUE(editor$detected)) "This R session is running in Positron." else
         "Positron was not detected in this R session. This does not mean it is not installed.",
       if (!isTRUE(editor$detected)) c("Open Positron and use its R Console for the course. If it is not installed, follow Step 2: https://books.lesscrime.info/learncrimemapping/setup.html", open_folder))
-  add("positron.version", if (is.null(editor$version)) "manual" else "passed",
-      if (is.null(editor$version)) "The Positron version cannot be read reliably from this R session." else
-        paste("Positron version:", editor$version),
-      if (is.null(editor$version)) "In Positron, open Help > About (on macOS, Positron > About Positron) to see the version.")
+  if (!is.null(editor$version)) {
+    add("positron.version", "passed", paste("Positron version:", editor$version))
+  }
   if (identical(os, "Windows")) {
     tools <- safe(workspace_rtools())
     add("rtools", if (is.null(tools)) "manual" else if (isTRUE(tools)) "passed" else "problem",
@@ -340,8 +343,10 @@ check_workspace <- function(workspace = NULL, check_updates = TRUE) {
       for (action in problem$actions) cli::cli_verbatim(action)
     }
   }
-  if (counts[["manual"]] > 0L) {
-    cli::cli_text("Complete any checks marked MANUAL CHECK as well as the repairs above.")
+  manual_checks <- Filter(function(check) check$status == "manual", checks)
+  for (manual_check in manual_checks) {
+    workspace_status_message("manual", manual_check$message)
+    for (action in manual_check$actions) cli::cli_verbatim(action)
   }
   cli::cli_text("After changes, run this in the R Console:")
   cli::cli_verbatim("learncrimemapping::check_workspace()")
@@ -356,9 +361,10 @@ workspace_status_message <- function(status, message) {
     cli::cli_text("{.workspace-pass PASS}: {message}")
   } else if (status == "problem") {
     cli::cli_text("{.workspace-problem PROBLEM}: {message}")
+  } else if (status == "manual") {
+    cli::cli_text("{.workspace-manual MANUAL CHECK}: {message}")
   } else {
-    labels <- c(manual = "MANUAL CHECK", not_checked = "NOT CHECKED",
-                not_applicable = "NOT APPLICABLE")
+    labels <- c(not_checked = "NOT CHECKED", not_applicable = "NOT APPLICABLE")
     label <- labels[[status]]
     cli::cli_alert_info("{label}: {message}")
   }

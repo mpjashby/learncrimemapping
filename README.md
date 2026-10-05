@@ -50,16 +50,18 @@ learncrimemapping::check_workspace(check_updates = FALSE)
 
 The default compares R with the published release using a five-second online
 lookup. A timeout, connection failure or unusable response produces a warning
-and a `not_checked` result; the remaining checks continue. Positron updates,
-operating-system compatibility, actual Air formatting behaviour and a general
+and a `not_checked` result; the remaining checks continue. Positron version
+lookups and update checks, operating-system compatibility, actual Air
+formatting behaviour and a general
 startup-file manual check are omitted. Local Air settings are still inspected,
 and inherited settings are not assumed to be incorrect. Windows checks use
 pkgbuild's Rtools detection in an isolated process.
 
-PASS labels are normal-weight green and PROBLEM labels are bold dark red in
-consoles that support colour. The words identify the status when colour is
-unavailable. A final **Problems to fix** list repeats each problem and its
-repair instructions without counting it twice.
+PASS labels are normal-weight green, PROBLEM labels are bold dark red, and
+MANUAL CHECK labels are normal-weight orange in consoles that support colour.
+The words identify the status when colour is unavailable. A final **Problems to fix** list repeats each problem and its
+repair instructions, followed by all required manual checks and their
+instructions, without counting any check twice.
 
 Posit Cloud's standard main folder, `/cloud/project`, is accepted even though
 Explorer labels it **Project**, independently of the project's chosen title.

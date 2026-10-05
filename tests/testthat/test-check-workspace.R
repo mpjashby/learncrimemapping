@@ -134,7 +134,7 @@ test_that("unconfident working-directory fallback never suggests directory creat
   expect_identical(check_status(report, "workspace.folder"), "manual")
   expect_identical(check_status(report, "workspace.active"), "manual")
   expect_false(grepl("dir.create", report$output, fixed = TRUE))
-  expect_match(report$output, "does not mean it is not installed")
+  expect_match(gsub("[[:space:]]+", " ", report$output), "does not mean it is not installed")
 })
 
 test_that("here and vscode markers establish fallback without an Rproj", {
@@ -494,8 +494,8 @@ test_that("requested manual checks and student-facing CARTO caveats are omitted"
   folder <- workspace_fixture()
   local_workspace_mocks(folder)
   report <- workspace_report(folder)
-  expect_false(any(c("positron.current", "system.compatibility", "air.behaviour", "carto.startup") %in% names(report$result$checks)))
-  for (text in c("Check for Updates", "type x=1", "Only presence was checked",
+  expect_false(any(c("positron.current", "positron.version", "system.compatibility", "air.behaviour", "carto.startup") %in% names(report$result$checks)))
+  for (text in c("Check for Updates", "About Positron", "Help > About", "type x=1", "Only presence was checked",
                  "Its value is never displayed or tested", "earlier start read")) {
     expect_false(grepl(text, report$output, fixed = TRUE))
   }
@@ -532,7 +532,8 @@ test_that("problems and repair code are repeated at the end without changing cou
 test_that("no-problems summary does not claim unverified checks passed", {
   folder <- workspace_fixture()
   withr::local_dir(folder)
-  local_workspace_mocks(folder)
+  local_workspace_mocks(folder,
+    workspace_editor = function() list(detected = TRUE, workspace = NULL, version = NULL))
   report <- workspace_report()
   expect_length(report$result$problems, 0L)
   expect_match(report$output, "No problems were found by the checks that ran.", fixed = TRUE)
@@ -542,14 +543,18 @@ test_that("no-problems summary does not claim unverified checks passed", {
 test_that("status labels use the requested weight and colours with plain-text fallback", {
   folder <- workspace_fixture()
   withr::local_dir(folder)
-  local_workspace_mocks(folder)
+  local_workspace_mocks(folder,
+    workspace_editor = function() list(detected = TRUE, workspace = NULL, version = NULL))
   unlink(file.path(folder, "output"), recursive = TRUE)
   withr::local_options(cli.num_colors = 256)
   report <- workspace_report()
   green_pass <- cli::make_ansi_style("green")("PASS")
   red_problem <- cli::make_ansi_style("bold")(cli::make_ansi_style("#8B0000")("PROBLEM"))
+  orange_manual <- cli::make_ansi_style("orange")("MANUAL CHECK")
   expect_true(grepl(green_pass, report$output, fixed = TRUE))
   expect_true(grepl(red_problem, report$output, fixed = TRUE))
+  expect_true(grepl(orange_manual, report$output, fixed = TRUE))
+  expect_false(grepl(paste0("\033[1m", orange_manual), report$output, fixed = TRUE))
   expect_false(grepl(paste0("\033[1m", green_pass), report$output, fixed = TRUE))
   expect_false(cli::ansi_has_any(paste(capture.output(str(report$result)), collapse = "\n")))
   withr::local_options(cli.num_colors = 1)
@@ -557,6 +562,7 @@ test_that("status labels use the requested weight and colours with plain-text fa
   expect_false(cli::ansi_has_any(plain$output))
   expect_match(plain$output, "PASS:", fixed = TRUE)
   expect_match(plain$output, "PROBLEM:", fixed = TRUE)
+  expect_match(plain$output, "MANUAL CHECK:", fixed = TRUE)
 })
 
 test_that("Posit Cloud's Project label is accepted without weakening local folder checks", {
@@ -583,4 +589,59 @@ test_that("Posit Cloud's Project label is accepted without weakening local folde
   local_workspace_bindings(workspace_cloud_folder = function(path) FALSE)
   report <- workspace_report()
   expect_identical(check_status(report, "workspace.name"), "problem")
+})
+
+
+test_that("Positron versions are reported only when available, with no manual lookup", {
+  folder <- workspace_fixture()
+  local_workspace_mocks(folder)
+  report <- workspace_report(folder)
+  expect_false("positron.version" %in% names(report$result$checks))
+  expect_false(grepl("About Positron", report$output, fixed = TRUE))
+  expect_false(grepl("Help > About", report$output, fixed = TRUE))
+  local_workspace_bindings(workspace_editor = function() {
+    list(detected = TRUE, workspace = folder, version = "2026.09.1")
+  })
+  report <- workspace_report(folder)
+  expect_identical(check_status(report, "positron.version"), "passed")
+  expect_length(report$result$checks[["positron.version"]]$actions, 0L)
+})
+
+test_that("final section repeats all manual checks after all problems without recounting", {
+  folder <- workspace_fixture()
+  withr::local_dir(folder)
+  local_workspace_mocks(folder,
+    workspace_editor = function() list(detected = TRUE, workspace = NULL, version = NULL))
+  writeLines('{}', file.path(folder, ".vscode", "settings.json"))
+  unlink(file.path(folder, "output"), recursive = TRUE)
+  report <- workspace_report()
+  manual <- Filter(function(check) check$status == "manual", report$result$checks)
+  expect_identical(names(manual), c("workspace.active", "air.format_on_save", "air.formatter"))
+  expect_identical(report$result$counts[["manual"]], 3L)
+  expect_identical(report$result$counts[["problem"]], 1L)
+  prose <- gsub("[[:space:]]+", " ", report$output)
+  summary <- strsplit(prose, "Problems to fix", fixed = TRUE)[[1]][[2]]
+  problem_position <- regexpr("PROBLEM:", summary, fixed = TRUE)[[1]]
+  manual_position <- regexpr("MANUAL CHECK:", summary, fixed = TRUE)[[1]]
+  expect_gt(problem_position, 0L)
+  expect_gt(manual_position, problem_position)
+  for (check in manual) {
+    positions <- gregexpr(check$message, prose, fixed = TRUE)[[1]]
+    expect_length(positions, 2L)
+    expect_true(all(positions > 0L))
+    expect_true(grepl(check$message, summary, fixed = TRUE))
+    for (action in check$actions) expect_true(grepl(action, summary, fixed = TRUE))
+  }
+})
+
+test_that("introduction explains the course purpose and links to unversioned chapters", {
+  folder <- workspace_fixture()
+  local_workspace_mocks(folder)
+  report <- workspace_report(folder)
+  introduction <- strsplit(report$output, "R and Positron", fixed = TRUE)[[1]][[1]]
+  prose <- gsub("[[:space:]]+", " ", introduction)
+  expect_match(prose, "your computer is set up correctly for the Crime Mapping course", fixed = TRUE)
+  expect_match(prose, "https://books.lesscrime.info/learncrimemapping/setup.html", fixed = TRUE)
+  expect_match(prose, "https://books.lesscrime.info/learncrimemapping/01_getting_started/", fixed = TRUE)
+  expect_false(grepl("/learncrimemapping/[0-9]{4}/", introduction))
 })
