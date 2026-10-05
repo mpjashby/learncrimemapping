@@ -1,7 +1,7 @@
 Package: learncrimemapping
 Type: Package
 Title: Learn Crime Mapping with R
-Version: 2.0.1
+Version: 2.1.0
 Authors@R: c(
     person(
       "Matthew", "Ashby",
@@ -37,6 +37,7 @@ Imports:
     here,
     httr2,
     janitor,
+    jsonlite,
     leaflet,
     lintr (>= 3.4.0),
     osmdata,
@@ -44,11 +45,13 @@ Imports:
     paletteer,
     patchwork,
     prettymapr,
+    pkgbuild,
     raster,
     remotes,
     rlang,
     rnaturalearth (>= 1.2.0),
     rprojroot (>= 2.0.4),
+    rstudioapi,
     sf,
     sfhotspot,
     slider,
@@ -57,7 +60,8 @@ Imports:
     usethis (>= 3.2.0),
     utils
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.2.0),
+    withr
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.1.0

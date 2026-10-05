@@ -36,6 +36,12 @@ jobs:
             any::rprojroot
             any::testthat
             any::remotes
+            any::here
+            any::httr2
+            any::jsonlite
+            any::pkgbuild
+            any::rstudioapi
+            any::withr
           cache-version: ${{ matrix.dependencies }}
       - name: Install minimum supported checker versions
         if: matrix.dependencies == 'minimum'
@@ -51,4 +57,5 @@ jobs:
         shell: Rscript {0}
         run: |
           source("R/check_code.R")
+          source("R/check_workspace.R")
           testthat::test_dir("tests/testthat", stop_on_failure = TRUE)

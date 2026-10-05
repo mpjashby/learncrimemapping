@@ -1,3 +1,12 @@
+# learncrimemapping 2.1.0
+
+* Export `check_workspace()` with a read-only, beginner-friendly cli report,
+  suggested repairs and structured results. Check course dependencies from
+  DESCRIPTION, Positron and file-path alignment, directory spelling and access,
+  Air JSON-with-comments settings, and secret-safe CARTO configuration.
+* Add isolated workspace regression tests and manual checks for editor
+  behaviour, inherited settings, software updates and startup limitations.
+
 # learncrimemapping 2.0.0
 
 * Require R 4.1.0 and lintr 3.4.0, replacing the removed nested-if linter

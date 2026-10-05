@@ -21,6 +21,55 @@ remotes::install_github("mpjashby/learncrimemapping")
 The main function of this package is to install all the R packages a user will
 need to run the code included in _Learn Crime Mapping with R_.
 
+Students can check their setup from Positron's R Console:
+
+```r
+learncrimemapping::check_workspace()
+```
+
+This read-only report checks R, the course dependencies listed in this
+package's DESCRIPTION (including their stated minimum versions), the active
+Positron workspace where its supported API is available, R's working folder,
+`here::here()`, each required directory, Air workspace files and R-specific
+formatting settings, and CARTO key presence. It prints every success as well as
+every problem, explains suggested repairs, and never prints API keys.
+No `.Rproj` file is required. It does not install packages, change the working
+folder, reset here, activate a usethis project, edit settings or write files.
+
+```r
+results <- learncrimemapping::check_workspace()
+results$counts
+results$checks[["workspace.here"]]
+
+# Inspect a folder independently of which folder Positron has open:
+learncrimemapping::check_workspace("~/Documents/crime_mapping")
+
+# Optionally check the published R release, with a bounded network lookup:
+learncrimemapping::check_workspace(check_updates = TRUE)
+```
+
+The default needs no network connection. Failed release lookups require manual
+verification and are not setup failures. Positron version and updates, inherited
+editor settings and actual Air formatting behaviour require manual checks.
+The report gives those instructions and never announces complete setup while
+checks remain unverified. Windows checks use pkgbuild's Rtools detection in an
+isolated process; other systems are not assumed to have compilation tools.
+
+`results$checks` contains stable named entries with `id`, `status`, `message`,
+`details` and `actions`. Statuses are `passed`, `problem`, `manual`,
+`not_checked` and `not_applicable`. `results$counts` counts each status.
+CARTO results contain only presence and startup-file selection, never key
+values. Normal R startup-file selection is checked for the next start;
+custom startup code, startup flags and a previous working folder cannot be
+reconstructed. Restart R in Positron and repeat the check to verify presence.
+
+The implementation follows the local 2026 textbook sources and official
+[Positron session detection guidance](https://positron.posit.co/migrate-rstudio-settings-and-extensions.html),
+[Positron workspace API guidance](https://positron.posit.co/guide-r-session-hooks.html),
+[Air settings guidance](https://posit-dev.github.io/air/editor-vscode.html),
+[editor setting precedence](https://code.visualstudio.com/docs/configure/settings),
+and [R startup rules](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Startup.html).
+
 It also provides the function `check_code()`, which students can use to run 
 various checks on an R script or Quarto file before submitting it for
 assessment.
@@ -81,6 +130,7 @@ Regression tests can run independently of the other course packages:
 
 ```r
 source("R/check_code.R")
+source("R/check_workspace.R")
 testthat::test_dir("tests/testthat")
 ```
 
