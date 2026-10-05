@@ -4,7 +4,7 @@
 \alias{check_workspace}
 \title{Check your Learn Crime Mapping workspace}
 \usage{
-check_workspace(workspace = NULL, check_updates = FALSE)
+check_workspace(workspace = NULL, check_updates = TRUE)
 }
 \arguments{
 \item{workspace}{Optional path to the main \code{crime_mapping} folder. Checking
@@ -14,18 +14,21 @@ directory (the folder R currently uses).}
 
 \item{check_updates}{Whether to look up the current R release using the
 public R-hub R versions service, with a five-second timeout. Defaults to
-\code{FALSE}, so the default report does not need an internet connection.
-Positron updates always require a manual check.}
+\code{TRUE}. Lookup failures produce a warning and a \code{not_checked} result,
+rather than a setup problem. Use \code{FALSE} to skip the online lookup.}
 }
 \value{
 Invisibly, a list with \code{workspace}, \code{workspace_source},
-\code{workspace_confident}, \code{checks} and \code{counts}. \code{checks} is a named list with
+\code{workspace_confident}, \code{checks}, \code{problems} and \code{counts}. \code{checks} is a named
+list with
 stable identifiers (package identifiers are \verb{package.<name>} and directory
 identifiers are \verb{directory.<relative/path>}). Each entry contains \code{id},
 \code{status}, \code{message}, \code{details} (non-secret diagnostic data), and \code{actions}
 (suggested instructions or R code). Statuses are \code{passed}, \code{problem},
 \code{manual}, \code{not_checked}, or \code{not_applicable}. \code{counts} counts each status.
-No API keys or contents of settings files are returned.
+\code{problems} repeats the entries from \code{checks} whose status is \code{problem},
+without counting them twice. No API keys or settings file contents are
+returned.
 }
 \description{
 Print a read-only setup report for students using Positron. Every check has
@@ -40,8 +43,10 @@ Positron detection uses its documented \code{POSITRON} indicator and, when
 supported, the rstudioapi compatibility API for the active workspace.
 No editor folders are inferred from the working directory alone. A fallback
 folder is considered confidently identified only when named \code{crime_mapping}
-and containing \code{.here} or \code{.vscode/settings.json}. An explicitly supplied
-existing folder can be checked independently of the editor.
+and containing \code{.here} or \code{.vscode/settings.json}, or when it is the
+standard Posit Cloud folder \verb{/cloud/project} (shown as Project in Explorer).
+An explicitly supplied existing folder can be checked independently of
+the editor.
 
 The current \code{here::here()} result is checked, including a previously cached
 folder. The checker never resets it, changes the working directory, activates
@@ -51,16 +56,16 @@ access flags; they cannot guarantee future writes or cloud synchronisation.
 Air settings are read as JSON with comments and trailing commas. Only
 explicit R language settings can be verified locally: user/profile/remote,
 multi-folder workspace settings and policies may affect editor behaviour.
-Absent local settings are not assumed to be incorrect. Actual formatting,
-extension availability, editor updates, and startup-file behaviour require
-manual verification. Windows Rtools detection runs pkgbuild in an isolated
-process so its detection does not change this session's environment.
+Absent local settings are not assumed to be incorrect. Actual formatting
+and extension availability are not tested. Windows Rtools detection runs
+pkgbuild in an isolated process so its detection does not change this
+session's environment.
 
 The startup-file check follows \code{R_ENVIRON_USER}, then \code{.Renviron} in the
 folder R would start in, then the user home folder (including R's
 architecture-specific files). It recognises literal key assignments without
-executing them. Variable expansion or unreadable files require manual
-verification. Startup flags, custom startup code, or a changed starting
+executing them. Variable expansion or unreadable files are marked
+\code{not_checked}. Startup flags, custom startup code, or a changed starting
 folder can affect which file was read previously. Presence is checked, not
 whether CARTO accepts the key. No authenticated requests are made.
 }

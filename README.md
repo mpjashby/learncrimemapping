@@ -44,20 +44,33 @@ results$checks[["workspace.here"]]
 # Inspect a folder independently of which folder Positron has open:
 learncrimemapping::check_workspace("~/Documents/crime_mapping")
 
-# Optionally check the published R release, with a bounded network lookup:
-learncrimemapping::check_workspace(check_updates = TRUE)
+# Skip the default online R-version check when working offline:
+learncrimemapping::check_workspace(check_updates = FALSE)
 ```
 
-The default needs no network connection. Failed release lookups require manual
-verification and are not setup failures. Positron version and updates, inherited
-editor settings and actual Air formatting behaviour require manual checks.
-The report gives those instructions and never announces complete setup while
-checks remain unverified. Windows checks use pkgbuild's Rtools detection in an
-isolated process; other systems are not assumed to have compilation tools.
+The default compares R with the published release using a five-second online
+lookup. A timeout, connection failure or unusable response produces a warning
+and a `not_checked` result; the remaining checks continue. Positron updates,
+operating-system compatibility, actual Air formatting behaviour and a general
+startup-file manual check are omitted. Local Air settings are still inspected,
+and inherited settings are not assumed to be incorrect. Windows checks use
+pkgbuild's Rtools detection in an isolated process.
+
+PASS labels are normal-weight green and PROBLEM labels are bold dark red in
+consoles that support colour. The words identify the status when colour is
+unavailable. A final **Problems to fix** list repeats each problem and its
+repair instructions without counting it twice.
+
+Posit Cloud's standard main folder, `/cloud/project`, is accepted even though
+Explorer labels it **Project**, independently of the project's chosen title.
+The checker does not recommend renaming that folder. Local desktop workspaces
+are still expected to be named `crime_mapping`. See the
+[Posit Cloud folder documentation](https://docs.posit.co/cloud/guide/articles/environment-variables.html).
 
 `results$checks` contains stable named entries with `id`, `status`, `message`,
 `details` and `actions`. Statuses are `passed`, `problem`, `manual`,
-`not_checked` and `not_applicable`. `results$counts` counts each status.
+`not_checked` and `not_applicable`. `results$counts` counts each status, and
+`results$problems` contains the entries with status `problem`.
 CARTO results contain only presence and startup-file selection, never key
 values. Normal R startup-file selection is checked for the next start;
 custom startup code, startup flags and a previous working folder cannot be

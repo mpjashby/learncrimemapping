@@ -42,7 +42,7 @@ local_workspace_mocks <- function(folder, ..., .env = parent.frame()) {
     workspace_here = function() folder,
     workspace_key_present = function() TRUE,
     workspace_saved_key = function(start_folder) list(state = "present", path = file.path(folder, ".Renviron"), source = "user"),
-    workspace_latest_r = function() stop("Network should not be used by default"),
+    workspace_latest_r = function() as.character(getRversion()),
     workspace_rtools = function() stop("Tools should not be probed on a Mac"),
     .package = "learncrimemapping", .env = .env
   )
@@ -70,7 +70,7 @@ test_that("a correct Positron workspace needs no Rproj and returns invisible sta
   for (id in c("workspace.active", "workspace.working_directory", "air.file", "air.settings", "air.format_on_save", "air.formatter", "carto.session", "carto.saved")) {
     expect_identical(check_status(report, id), "passed")
   }
-  expect_identical(check_status(report, "air.behaviour"), "manual")
+  expect_false("air.behaviour" %in% names(report$result$checks))
   expect_identical(check_status(report, "rtools"), "not_applicable")
   expect_false(any(grepl("Rproj$", list.files(folder, all.files = TRUE))))
   expect_match(report$output, "PASS:.*here::here")
@@ -189,11 +189,12 @@ test_that("all authoritative dependencies and version constraints are retained",
   expect_true(any(grepl('remotes::install_github("example/examplegithub")', github_action, fixed = TRUE)))
 })
 
-test_that("failed online release lookup is manual and later checks continue", {
+test_that("failed default online lookup warns and later checks continue", {
   folder <- workspace_fixture()
-  local_workspace_mocks(folder)
-  report <- workspace_report(folder, check_updates = TRUE)
-  expect_identical(check_status(report, "r.current"), "manual")
+  local_workspace_mocks(folder, workspace_latest_r = function() stop("connection error"))
+  expect_warning(report <- workspace_report(folder), "online lookup failed or timed out",
+                 class = "learncrimemapping_update_warning")
+  expect_identical(check_status(report, "r.current"), "not_checked")
   expect_match(report$output, "not a setup failure")
   expect_identical(check_status(report, "directory.R"), "passed")
   expect_identical(check_status(report, "carto.session"), "passed")
@@ -350,7 +351,7 @@ test_that("tooling failures do not stop later checks or leak error text", {
   report <- workspace_report(folder)
   expect_identical(check_status(report, "workspace.here"), "not_checked")
   expect_identical(check_status(report, "air.settings"), "manual")
-  expect_identical(check_status(report, "carto.saved"), "manual")
+  expect_identical(check_status(report, "carto.saved"), "not_checked")
   expect_false(grepl("secret-", report$output, fixed = TRUE))
   expect_gt(report$result$counts[["passed"]], 0)
 })
@@ -460,4 +461,126 @@ test_that("relative R_ENVIRON_USER paths are resolved from the starting folder",
 test_that("repair code quotes spaces, quotes and Unicode without evaluating paths", {
   path <- 'folder with spaces/"quotes"/é'
   expect_identical(eval(parse(text = workspace_quote(path))), path)
+})
+
+test_that("online comparison is enabled by default and can be explicitly skipped", {
+  folder <- workspace_fixture()
+  calls <- 0L
+  local_workspace_mocks(folder, workspace_latest_r = function() {
+    calls <<- calls + 1L
+    as.character(getRversion())
+  })
+  report <- workspace_report(folder)
+  expect_identical(calls, 1L)
+  expect_identical(check_status(report, "r.current"), "passed")
+  report <- workspace_report(folder, check_updates = FALSE)
+  expect_identical(calls, 1L)
+  expect_identical(check_status(report, "r.current"), "not_checked")
+  expect_match(report$output, "check_updates = FALSE", fixed = TRUE)
+})
+
+test_that("timeouts warn without treating a failed lookup as a setup problem", {
+  folder <- workspace_fixture()
+  local_workspace_mocks(folder, workspace_latest_r = function() stop("request timed out"))
+  expect_warning(report <- workspace_report(folder), "online lookup failed or timed out",
+                 class = "learncrimemapping_update_warning")
+  expect_identical(check_status(report, "r.current"), "not_checked")
+  expect_identical(report$result$counts[["problem"]], 1L) # cwd differs from supplied folder
+  expect_false("r.current" %in% names(report$result$problems))
+  expect_identical(check_status(report, "carto.session"), "passed")
+})
+
+test_that("requested manual checks and student-facing CARTO caveats are omitted", {
+  folder <- workspace_fixture()
+  local_workspace_mocks(folder)
+  report <- workspace_report(folder)
+  expect_false(any(c("positron.current", "system.compatibility", "air.behaviour", "carto.startup") %in% names(report$result$checks)))
+  for (text in c("Check for Updates", "type x=1", "Only presence was checked",
+                 "Its value is never displayed or tested", "earlier start read")) {
+    expect_false(grepl(text, report$output, fixed = TRUE))
+  }
+  local_workspace_bindings(workspace_saved_key = function(path) stop("unreadable"))
+  report <- workspace_report(folder)
+  expect_identical(check_status(report, "carto.saved"), "not_checked")
+  expect_length(report$result$checks[["carto.saved"]]$actions, 0L)
+})
+
+test_that("problems and repair code are repeated at the end without changing counts", {
+  folder <- workspace_fixture()
+  withr::local_dir(folder)
+  local_workspace_mocks(folder)
+  unlink(file.path(folder, "output"), recursive = TRUE)
+  unlink(file.path(folder, "R"), recursive = TRUE)
+  report <- workspace_report()
+  problems <- report$result$problems
+  expect_identical(names(problems), c("directory.output", "directory.R"))
+  expect_identical(report$result$counts[["problem"]], length(problems))
+  expect_identical(problems, report$result$checks[names(problems)])
+  # cli wraps prose to the console width; compare the text independently of
+  # those display line breaks, leaving copyable repair code intact.
+  prose <- gsub("[[:space:]]+", " ", report$output)
+  summary <- strsplit(prose, "Problems to fix", fixed = TRUE)[[1]][[2]]
+  for (problem in problems) {
+    occurrences <- gregexpr(problem$message, prose, fixed = TRUE)[[1]]
+    expect_length(occurrences, 2L)
+    expect_true(all(occurrences > 0L))
+    expect_true(grepl(problem$message, summary, fixed = TRUE))
+    expect_true(grepl(problem$actions[[2]], summary, fixed = TRUE))
+  }
+})
+
+test_that("no-problems summary does not claim unverified checks passed", {
+  folder <- workspace_fixture()
+  withr::local_dir(folder)
+  local_workspace_mocks(folder)
+  report <- workspace_report()
+  expect_length(report$result$problems, 0L)
+  expect_match(report$output, "No problems were found by the checks that ran.", fixed = TRUE)
+  expect_gt(report$result$counts[["manual"]], 0L)
+})
+
+test_that("status labels use the requested weight and colours with plain-text fallback", {
+  folder <- workspace_fixture()
+  withr::local_dir(folder)
+  local_workspace_mocks(folder)
+  unlink(file.path(folder, "output"), recursive = TRUE)
+  withr::local_options(cli.num_colors = 256)
+  report <- workspace_report()
+  green_pass <- cli::make_ansi_style("green")("PASS")
+  red_problem <- cli::make_ansi_style("bold")(cli::make_ansi_style("#8B0000")("PROBLEM"))
+  expect_true(grepl(green_pass, report$output, fixed = TRUE))
+  expect_true(grepl(red_problem, report$output, fixed = TRUE))
+  expect_false(grepl(paste0("\033[1m", green_pass), report$output, fixed = TRUE))
+  expect_false(cli::ansi_has_any(paste(capture.output(str(report$result)), collapse = "\n")))
+  withr::local_options(cli.num_colors = 1)
+  plain <- workspace_report()
+  expect_false(cli::ansi_has_any(plain$output))
+  expect_match(plain$output, "PASS:", fixed = TRUE)
+  expect_match(plain$output, "PROBLEM:", fixed = TRUE)
+})
+
+test_that("Posit Cloud's Project label is accepted without weakening local folder checks", {
+  expect_true(workspace_cloud_folder("/cloud/project"))
+  expect_false(workspace_cloud_folder("/cloud/project/other"))
+  expect_false(workspace_cloud_folder(file.path(tempdir(), "Project")))
+  folder <- workspace_fixture("Project")
+  withr::local_dir(folder)
+  local_workspace_mocks(folder, workspace_cloud_folder = function(path) workspace_same_path(path, folder))
+  report <- workspace_report()
+  expect_identical(check_status(report, "workspace.name"), "passed")
+  expect_match(gsub("[[:space:]]+", " ", report$output), "may display it as Project", fixed = TRUE)
+  expect_false(grepl("rename it to crime_mapping", report$output, fixed = TRUE))
+  unlink(file.path(folder, "output"), recursive = TRUE)
+  report <- workspace_report()
+  expect_true(any(grepl("dir.create", report$result$checks[["directory.output"]]$actions, fixed = TRUE)))
+  # Cloud fallback is also identifiable when the active-workspace API and
+  # local editor markers are unavailable; getwd is not presented as API proof.
+  unlink(file.path(folder, ".vscode"), recursive = TRUE)
+  local_workspace_bindings(workspace_editor = function() list(detected = TRUE, workspace = NULL, version = NULL))
+  report <- workspace_report()
+  expect_true(report$result$workspace_confident)
+  expect_identical(check_status(report, "workspace.active"), "manual")
+  local_workspace_bindings(workspace_cloud_folder = function(path) FALSE)
+  report <- workspace_report()
+  expect_identical(check_status(report, "workspace.name"), "problem")
 })
