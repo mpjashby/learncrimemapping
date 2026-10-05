@@ -1,34 +1,63 @@
 Package: learncrimemapping
 Type: Package
 Title: Learn Crime Mapping with R
-Version: 2.0.0
+Version: 2.0.1
 Authors@R: c(
     person(
-      "Matthew", "Ashby", 
+      "Matthew", "Ashby",
       email = "matthew.ashby@ucl.ac.uk",
-      role = c("aut", "cre", "cph"), 
+      role = c("aut", "cre", "cph"),
       comment = c(ORCID = "0000-0003-4201-9239")
     )
   )
-Description: Package of utility functions to support learners using the book
-    Learn Crime Mapping with R.
+Description: Installs the R packages required for student examples in
+    the 2026 edition of 'Learn Crime Mapping with R' and provides
+    utility functions for checking learners' code.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
-URL: http://books.lesscrime.info/learncrimemapping/, https://github.com/mpjashby/learncrimemapping
+URL: https://books.lesscrime.info/learncrimemapping/,
+    https://github.com/mpjashby/learncrimemapping
 BugReports: https://github.com/mpjashby/learncrimemapping/issues
-Depends: R (>= 4.1.0)
-Imports: 
-    callr (>= 3.7.0), cli, colorblindr, conflicted, crsuggest, cyclocomp, dplyr,
-    evaluate (>= 1.0.0), gganimate, ggauto, ggplot2, ggrepel, ggridges, ggspatial,
-    ggthemes, gifski (>= 1.4.3), gt, here, htmltools, httr2,
-    janitor, knitr, leaflet, lintr (>= 3.4.0), lubridate,
-    osmdata, pacman, paletteer, patchwork, prettymapr, raster,
-    RColorBrewer, readxl, remotes, reprex, rlang, rmarkdown, rprojroot (>= 2.0.4),
-    rnaturalearth (>= 1.2.0), scales, sf, sfhotspot, slider,
-    stringr, tibble, tidygeocoder, tidyverse (>= 2.0.0),
-    tinytex, usethis (>= 3.2.0), utils
-Suggests: testthat (>= 3.0.0)
+Depends:
+    R (>= 4.1.0)
+Imports:
+    callr (>= 3.7.0),
+    cli,
+    crsuggest,
+    cyclocomp,
+    evaluate (>= 1.0.0),
+    gganimate,
+    ggauto,
+    ggrepel,
+    ggridges,
+    ggspatial,
+    ggthemes,
+    gifski (>= 1.4.3),
+    gt,
+    here,
+    httr2,
+    janitor,
+    leaflet,
+    lintr (>= 3.4.0),
+    osmdata,
+    pacman,
+    paletteer,
+    patchwork,
+    prettymapr,
+    raster,
+    remotes,
+    rlang,
+    rnaturalearth (>= 1.2.0),
+    rprojroot (>= 2.0.4),
+    sf,
+    sfhotspot,
+    slider,
+    tidygeocoder,
+    tidyverse (>= 2.0.0),
+    usethis (>= 3.2.0),
+    utils
+Suggests:
+    testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.1.0
