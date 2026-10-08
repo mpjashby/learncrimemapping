@@ -1,0 +1,19 @@
+---
+title: "Manual test: disabled chunks"
+format: html
+---
+
+# This lowercase document heading is prose, not an R comment
+
+```{r}
+#| eval: false
+#bad comment in deliberately disabled code
+brokenName = c(1, 2,
+```
+
+```{r}
+# Only this enabled R chunk should be checked
+values <- 1:5
+counts <- values * 2
+plot(values, counts, xlab = "Value", ylab = "Count")
+```

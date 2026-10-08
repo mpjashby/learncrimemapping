@@ -28,6 +28,7 @@ jobs:
         with:
           packages: |
             any::callr
+            any::processx
             any::evaluate
             any::lintr
             any::cyclocomp
@@ -42,6 +43,7 @@ jobs:
             any::pkgbuild
             any::rstudioapi
             any::withr
+            any::sf
           cache-version: ${{ matrix.dependencies }}
       - name: Install minimum supported checker versions
         if: matrix.dependencies == 'minimum'

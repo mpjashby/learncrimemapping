@@ -1,0 +1,8 @@
+# Emit synthetic conditions to test filtering without loading packages
+message("Loading required package: example")
+message("The following object is masked from package:stats: filter")
+message("Check this non-routine message.")
+warning("This is an intentional warning.")
+warning(
+  "st_point_on_surface may not give correct results for longitude/latitude data"
+)

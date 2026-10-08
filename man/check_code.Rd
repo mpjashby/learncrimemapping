@@ -9,7 +9,8 @@ check_code(
   reprex = TRUE,
   style = TRUE,
   execution_dir = NULL,
-  timeout = 600
+  timeout = 600,
+  profile = list()
 )
 }
 \arguments{
@@ -28,11 +29,15 @@ the file's directory if no project is found.}
 
 \item{timeout}{Maximum execution time in seconds, defaulting to 600 (ten
 minutes). Must be a positive finite number.}
+
+\item{profile}{An exercise profile shared with \code{\link[=check_submissions]{check_submissions()}}.
+See that function for supported settings.}
 }
 \value{
 Invisibly, a list containing the original file, execution directory,
 execution status and captured events, lint results, check failures,
-report path, and checker dependency versions. Execution status is one of
+report path, checker dependency versions, and a shared \code{issues} list.
+Execution status is one of
 \code{skipped}, \code{success}, \code{error}, \code{timeout}, or \code{failed}. Reports and plots
 are temporary and last for the current R session.
 }
@@ -55,6 +60,20 @@ Dynamic chunk options, child documents, and document rendering settings
 are not reproduced. Locations refer to the original file. Runtime
 locations identify the start of the executing expression, rather than
 the precise failing statement within a function.
+
+Explicit package installation/update calls prevent execution and are
+reported as feedback. This preflight is not a security sandbox.
+Calls to \code{check_code()} in submitted code also prevent execution: run the
+checker from the console. Known syntax errors are reported without running
+any of the submitted code.
+
+Executed \code{sf::st_transform()} calls are checked against the target CRS's
+EPSG area-of-use bounds using the local database exposed by sf/PROJ. This
+compares geographic geometry vertices with approximate bounds, assumes
+that the source CRS is correctly assigned, and does not prove that a CRS
+is otherwise suitable. Missing metadata is reported as an incomplete check.
+Custom pipelines and transformations not performed through sf are outside
+this check. CRS checking requires execution (\code{reprex = TRUE}).
 
 Local lintr configuration is ignored. Findings are suggestions, not a
 guarantee of correctness or an assessment grade.

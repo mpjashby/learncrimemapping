@@ -1,0 +1,13 @@
+---
+title: "Manual test: Clean example"
+format: html
+---
+
+These data and conditions are synthetic examples for testing the checker.
+
+```{r}
+# Create a small dataset and plot it
+values <- 1:5
+counts <- values * 2
+plot(values, counts, main = "Example plot", xlab = "Value", ylab = "Count")
+```

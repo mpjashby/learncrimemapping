@@ -1,7 +1,7 @@
 Package: learncrimemapping
 Type: Package
 Title: Learn Crime Mapping with R
-Version: 2.1.0
+Version: 2.2.0
 Authors@R: c(
     person(
       "Matthew", "Ashby",
@@ -45,6 +45,7 @@ Imports:
     paletteer,
     patchwork,
     prettymapr,
+    processx,
     pkgbuild,
     raster,
     remotes,

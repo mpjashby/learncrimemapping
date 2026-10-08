@@ -1,0 +1,10 @@
+# Send only package source to Docker, never marking data or Git history.
+**
+!DESCRIPTION
+!NAMESPACE
+!R/
+!R/**
+!man/
+!man/**
+!inst/
+!inst/**
