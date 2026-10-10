@@ -1,66 +1,27 @@
-# Automated weekly submission feedback
+# Automated submission feedback reference
+
+This reference explains exercise profiles, feedback rules and the limits of the
+automated checker. For package installation, Docker setup, running or resuming a
+batch and uploading reviewed reports to Moodle, follow [MARKING.md](MARKING.md).
+The reports provide feedback, not grades; analytical and visual correctness
+require assessor review.
 
 `check_code()` and `check_submissions()` use one quiet backend and the same
 feedback interpretation. Console, text and HTML reports are presentations of
-the same structured `issues` list. The existing `check_code()` arguments and
-return fields remain available; `profile`, `issues` and `scope` are additions.
-
-## A weekly batch
-
-Install the package from the development checkout as described in
-[MARKING.md](MARKING.md). `check_submissions()` remains internal and can be called as
-`learncrimemapping:::check_submissions()` from the separate marking project.
-
-
-```r
-week_01 <- list(
-  name = "Week 1 exercise",
-  expected_extension = "R"
-)
-
-batch <- learncrimemapping:::check_submissions(
-  zip = "SECU0005_26-27-Upload your code for the Week 1 exercise-9071365.zip",
-  output_dir = "feedback/week-01",
-  profile = week_01,
-  timeout = 600
-)
-
-batch$manifest
-batch$index
-```
-
-Use a new or empty output directory. Each Moodle
-`Participant_ID_assignsubmission_file` or `Name_ID_assignsubmission_file`
-folder must contain one nonempty `.R`,
-`.qmd` or `.Rmd` file. Missing, extra, empty and unsupported files receive
-feedback reports. ZIP metadata files are ignored. Unsupported folder layouts,
-nested submission paths, duplicate paths, unsafe paths and excessively large
-archives are rejected before any code runs. Different folders with the same
-participant ID are rejected as ambiguous. Named folders retain their original
-paths in the manifest, but reports use `Participant ID` as their identity.
-
-The output directory contains:
-
-- `index.html`: assessor overview linking to each student's report.
-- `feedback/Participant_ID.html`: portable reports to distribute individually.
-- `manifest.csv`: participant IDs, original paths, checksums, execution statuses,
-  issue counts, incomplete-check flags and report paths.
-- `results.rds`: all structured results, including captured events and issues.
-- `submissions/`: extracted originals.
-- `workspaces/`: separate execution directories, generated files and checker logs.
-
-Completed results are checkpointed after each participant. An interrupted batch
-retains completed reports, but automatic resumption is not yet implemented.
-Issue counts include suggestions and review prompts; they are not grades.
+the structured `issues` list. With style checking enabled, staff batches also
+add advisory checks for chains of single-use intermediate objects and missing
+blank lines before section comments beside multiline statements. These checks
+require manual judgement and are not run by student-facing `check_code()`.
 
 ## Matching student checks
 
-Share the exercise profile with students:
+Share the exercise profile used for the staff batch with students so both use
+the same exercise requirements:
 
 ```r
 result <- learncrimemapping::check_code(
   "scripts/exercise_01.R",
-  profile = week_01
+  profile = list(name = "Week 1 exercise", expected_extension = "R")
 )
 
 result$issues
@@ -104,11 +65,25 @@ the reserved `.sandbox` directory. Build the image first; see [MARKING.md](MARKI
 No student code is rewritten, and student submissions cannot share these
 execution directories by accident.
 
-The minimal image preinstalls checker packages, `sf`, `pacman` and `here`,
-rather than all course packages. Add assignment-specific packages at image build
-time with `EXERCISE_PACKAGES`; see [MARKING.md](MARKING.md). In Docker batches, explicit and implicit
-package installations are allowed and use each student's private library beneath
-their workspace. The preinstalled and host libraries cannot be changed. The
+Extracted submissions and execution workspaces, including private package
+libraries, downloads and caches, are temporary. They are removed after each
+self-contained HTML report is saved. Reports embed source code, plots and
+captured logs; `results.rds` retains structured results, but paths to temporary
+files are historical references. Keep the original Moodle ZIP for reviewing
+submitted files. The persistent batch outputs and resumption procedure are
+described in [MARKING.md](MARKING.md).
+
+By default, `build_checker_image()` preinstalls the packages listed in
+`DESCRIPTION` Imports except `gifski`, plus their required R dependencies and
+the core checker packages. Optional `Suggests` are not installed. Package
+versions are those available on CRAN when the image is built; subsequent batches
+reuse those versions until it is rebuilt. Customise the preinstalled R and system
+packages with the build function's `packages` and `system_packages` arguments;
+see [MARKING.md](MARKING.md) for setup and rebuilding instructions.
+The image does not include RStudio Server, TeX, Quarto or Pandoc; documents have
+their enabled R chunks checked without rendering. In Docker batches, explicit
+and implicit package installations are allowed and use each student's private
+library beneath their workspace. The preinstalled and host libraries cannot be changed. The
 local backend and `check_code()` retain the preflight that blocks recognised
 explicit installation/update calls. That preflight is not a security boundary.
 
@@ -198,6 +173,7 @@ are assigned or consumed by another function are exempt, including intermediate
 pipe stages. A terminal inspection stage in an unassigned pipe is flagged.
 Missing-argument lints include trailing-comma guidance and the enclosing call.
 
+Issue counts include suggestions and review prompts; they are not grades.
 The assessor index separates execution outcomes from feedback status. Status
 prioritises errors, warnings, messages and remaining style/review issues. EPSG
 area-of-use findings count as warnings. Unsupported submissions and incomplete

@@ -23,3 +23,6 @@ Rplots.pdf
 
 # Generated during package installation by configure
 inst/container/R/
+
+# Working files
+TODO.md

@@ -5,7 +5,8 @@
 #' submissions. A batch index, CSV manifest and RDS results are also retained.
 #'
 #' @param zip Path to a Moodle submission ZIP.
-#' @param output_dir A new or empty directory for persistent results.
+#' @param output_dir Directory for persistent results. Existing participant reports
+#'   are skipped, and unrelated files are preserved.
 #' @param profile Named list with `name`, optional `expected_extension`, optional
 #'   literal `required_declaration` to find in an R comment, and `text_output`
 #'   (`"review"` or `"allow"`). Share the same profile with students.
@@ -25,6 +26,8 @@
 #'   student's private library within that workspace, never the host library.
 #'   R and system libraries inside the image remain readable. No automatic
 #'   fallback to local execution occurs. Local execution is not a sandbox.
+#'   Docker forwards `CARTO_API_KEY` from the calling R session when set.
+#'   Submitted code can access this key; host startup files are not mounted.
 #'   Quarto documents have enabled R chunks checked; full rendering is not done.
 #'   ZIPs are limited to 5,000 entries and 100 MB of uncompressed content.
 #'   Both named and anonymous Moodle folders are supported; report identities
@@ -33,7 +36,10 @@
 #'   single-use intermediate objects and missing blank lines before section
 #'   comments beside multiline statements. These advisory checks are not run
 #'   by [check_code()] and require manual judgement.
-#'   Existing results are never overwritten. Network failures and missing
+#'   Existing participant reports are never overwritten. Batch metadata is updated
+#'   after each new report. Extracted files and workspaces are temporary and
+#'   removed after their self-contained HTML report has been saved.
+#'   Network failures and missing
 #'   credentials may need assessor review; they are not automatic penalties.
 #' @keywords internal
 check_submissions <- function(zip, output_dir, profile = list(),
@@ -82,14 +88,11 @@ check_submissions <- function(zip, output_dir, profile = list(),
   }
   if (!is.null(workspace_template)) validate_submission_template(workspace_template)
   if (file.exists(output_dir) && !dir.exists(output_dir)) stop("output_dir is a file.")
-  if (dir.exists(output_dir) && length(list.files(output_dir, all.files = TRUE,
-                                                 no.. = TRUE))) {
-    stop("output_dir must be new or empty; previous results will not be overwritten.")
+  targets <- file.path(output_dir, "feedback", paste0(identities, ".html"))
+  if (backend == "docker" && any(!file.exists(targets))) {
+    container <- submission_container_config(container_image, container_memory, container_cpus)
   }
-  if (backend == "docker") {
-    container <- submission_container_config(container_image, container_memory,
-                                              container_cpus)
-  } else if (reprex) {
+  if (backend == "local" && reprex) {
     warning("Local checking is unrestricted: student code can change host files and packages.",
             call. = FALSE)
   }
@@ -102,31 +105,65 @@ check_submissions <- function(zip, output_dir, profile = list(),
       stop("output_dir must not be inside workspace_template.")
     }
   }
-  # Raw code and working files stay separate from the reports to distribute.
-  dir.create(file.path(output_dir, "submissions"))
-  dir.create(file.path(output_dir, "workspaces"))
-  dir.create(file.path(output_dir, "feedback"))
-  files <- paths[is_file]
-  if (length(files)) {
-    utils::unzip(zip, files = files, exdir = file.path(output_dir, "submissions"),
-                 unzip = "internal", setTimes = FALSE)
-    extracted <- file.path(output_dir, "submissions", files)
-    links <- Sys.readlink(extracted)
-    if (any(!file.exists(extracted)) || any(!is.na(links) & nzchar(links))) {
-      stop("Extraction failed or produced symbolic links; no code was executed.")
+  feedback_dir <- file.path(output_dir, "feedback")
+  if (file.exists(feedback_dir) && !dir.exists(feedback_dir)) {
+    stop("feedback is a file; existing files will not be replaced.")
+  }
+  dir.create(feedback_dir, showWarnings = FALSE)
+  results_file <- file.path(output_dir, "results.rds")
+  manifest_file <- file.path(output_dir, "manifest.csv")
+  results <- if (file.exists(results_file)) readRDS(results_file) else list()
+  previous <- if (file.exists(manifest_file))
+    utils::read.csv(manifest_file, stringsAsFactors = FALSE) else NULL
+  rows <- list()
+  # Keep metadata for all completed reports in every checkpoint, including
+  # participants later in the archive than the next unfinished submission.
+  if (!is.null(previous)) {
+    for (participant in identities) {
+      row <- previous[previous$participant == participant, , drop = FALSE]
+      if (nrow(row) && file.exists(file.path(feedback_dir, paste0(participant, ".html")))) {
+        rows[[participant]] <- row[1L, , drop = FALSE]
+      }
     }
   }
-  results <- list()
-  rows <- list()
+  temporary <- tempfile(".submission-batch-", tmpdir = output_dir)
+  dir.create(temporary)
+  on.exit(unlink(temporary, recursive = TRUE), add = TRUE)
   for (group in groups) {
     participant <- identities[match(group, groups)]
     submitted <- paths[folder == group & is_file]
+    target <- file.path(feedback_dir, paste0(participant, ".html"))
+    if (dir.exists(target)) stop("Report path is a directory: ", target)
+    if (file.exists(target)) {
+      cli::cli_text("Skipping existing report for {participant}")
+      row <- if (!is.null(previous)) previous[previous$participant == participant, , drop = FALSE] else NULL
+      if (is.null(row) || !nrow(row)) {
+        row <- data.frame(participant = participant,
+          archive_path = paste(submitted, collapse = "; "), checksum = NA_character_,
+          execution = "unknown", status = "unknown", issues = NA_integer_,
+          incomplete = TRUE, report = paste0("feedback/", participant, ".html"),
+          stringsAsFactors = FALSE)
+      }
+      rows[[participant]] <- row[1L, , drop = FALSE]
+      next
+    }
     cli::cli_text("Checking {participant}")
-    file <- if (length(submitted) == 1L)
-      file.path(output_dir, "submissions", submitted) else group
-    report_dir <- file.path(output_dir, "workspaces", participant, "checker")
-    workspace <- dirname(report_dir)
-    dir.create(workspace, recursive = TRUE, showWarnings = FALSE)
+    participant_dir <- file.path(temporary, participant)
+    extraction <- file.path(participant_dir, "submissions")
+    workspace <- file.path(participant_dir, "workspace")
+    dir.create(extraction, recursive = TRUE)
+    dir.create(workspace)
+    if (length(submitted)) {
+      utils::unzip(zip, files = submitted, exdir = extraction,
+                   unzip = "internal", setTimes = FALSE)
+      extracted <- file.path(extraction, submitted)
+      links <- Sys.readlink(extracted)
+      if (any(!file.exists(extracted)) || any(!is.na(links) & nzchar(links))) {
+        stop("Extraction failed or produced symbolic links; no code was executed.")
+      }
+    }
+    file <- if (length(submitted) == 1L) file.path(extraction, submitted) else group
+    report_dir <- file.path(workspace, "checker")
     valid <- length(submitted) == 1L &&
       tolower(tools::file_ext(file)) %in% c("r", "rmd", "qmd")
     if (valid) valid <- file.info(file)$size > 0
@@ -148,24 +185,32 @@ check_submissions <- function(zip, output_dir, profile = list(),
       })
     }
     if (valid && style) result <- add_marking_style_feedback(result)
-    target <- file.path(output_dir, "feedback", paste0(participant, ".html"))
-    result$html_report <- write_code_feedback(result, target, participant)
+    # Publish only a complete report, so an interrupted write can be retried.
+    staged_report <- file.path(participant_dir, "feedback.html")
+    write_code_feedback(result, staged_report, participant)
+    if (file.exists(target) || !file.rename(staged_report, target)) stop("Could not save report: ", target)
+    result$html_report <- normalizePath(target, winslash = "/", mustWork = TRUE)
     result$participant <- participant
     result$archive_path <- submitted
     results[[participant]] <- result
-    rows[[length(rows) + 1L]] <- data.frame(
+    rows[[participant]] <- data.frame(
       participant = participant, archive_path = paste(submitted, collapse = "; "),
       checksum = if (valid) unname(tools::md5sum(file)) else NA_character_,
-      execution = result$execution$status, status = code_feedback_status(result), issues = length(result$issues),
+      execution = result$execution$status, status = code_feedback_status(result), issues = length(unique(vapply(result$issues, `[[`, character(1), "id"))),
       incomplete = any(vapply(result$issues, function(x)
         x$category == "incomplete" || x$id == "runtime.environment", logical(1))),
       report = paste0("feedback/", participant, ".html"), stringsAsFactors = FALSE)
+    unlink(participant_dir, recursive = TRUE)
     # Save completed work after every participant, so interruptions retain it.
-    manifest <- do.call(rbind, rows)
+    manifest <- do.call(rbind, unname(rows))
     utils::write.csv(manifest, file.path(output_dir, "manifest.csv"), row.names = FALSE)
     saveRDS(results, file.path(output_dir, "results.rds"))
     write_submission_index(manifest, file.path(output_dir, "index.html"), profile)
   }
+  manifest <- do.call(rbind, unname(rows[identities]))
+  utils::write.csv(manifest, manifest_file, row.names = FALSE)
+  saveRDS(results, results_file)
+  write_submission_index(manifest, file.path(output_dir, "index.html"), profile)
   result <- list(manifest = manifest, results = results,
                  index = file.path(output_dir, "index.html"))
   cli::cli_text("Batch reports: {.file {result$index}}")
@@ -236,7 +281,7 @@ write_submission_index <- function(manifest, file, profile) {
     paste0("<style>", feedback_html_css(), "</style></head><body><main>"),
     "<header><p class='eyebrow'>SECU0005 Crime Mapping</p><h1>Submission feedback</h1></header>",
     paste0("<p>", e(profile$name), " \u00b7 ", nrow(manifest), " submissions checked</p>"),
-    "<p>Assessor index. Issue counts include suggestions and review prompts, and are not marks.</p>",
+    "<p>Assessor index. Issue counts count each type of issue once, include suggestions and review prompts, and are not marks.</p>",
     "<table><thead><tr><th>Participant / report</th><th>Status</th><th>Issues</th><th>Review</th></tr></thead><tbody>",
     rows, "</tbody></table></main></body></html>"), file, useBytes = TRUE)
 }

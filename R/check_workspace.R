@@ -167,8 +167,6 @@ check_workspace <- function(workspace = NULL, check_updates = TRUE) {
           if (isTRUE(tools)) paste("pkgbuild detected Rtools compatible with R", r_version) else
             paste("Rtools compatible with R", r_version, "was not detected. R uses it when installing some course packages."),
         if (!isTRUE(tools)) "Follow Step 3 of the book's setup page: open https://cran.r-project.org/bin/windows/Rtools/, choose the version matching your running R version, and install it with the default options. Then restart R in Positron.")
-    add("windows.redistributable", "manual", "The Microsoft Visual C++ Redistributable needed by Positron has not been verified from R.",
-        "Follow the Windows instructions in Step 2: https://books.lesscrime.info/learncrimemapping/setup.html (including its Microsoft Visual C++ Redistributable link).")
   } else {
     add("rtools", "not_applicable", "Windows Rtools is not needed on this operating system. Compilation tools on this computer have not been tested.")
   }
@@ -255,7 +253,11 @@ check_workspace <- function(workspace = NULL, check_updates = TRUE) {
       permission = paste(folder_label, "exists but read, write or folder-opening access is unavailable. R needs this access to use course files."),
       paste(folder_label, "could not be inspected reliably."))
     if (directory$kind == "missing") {
-      actions <- if (confident && (named || cloud)) c("Run this line in the R Console to create the missing directory:",
+      fresh <- named && workspace_same_path(folder, wd) &&
+        !any(file.exists(file.path(folder, c("data", "R", "output"))))
+      actions <- if (confident && fresh) c(
+        "Run this line in the R Console to create all required directories:",
+        "learncrimemapping::create_dirs()") else if (confident && (named || cloud)) c("Run this line in the R Console to create the missing directory:",
         paste0("dir.create(", workspace_quote(file.path(folder, relative)), ", recursive = TRUE)")) else
           c("No folder-creation code is suggested until the main crime_mapping folder is confirmed.", open_folder)
     } else if (directory$kind == "file") {

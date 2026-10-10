@@ -61,12 +61,14 @@ are intentional: this is a staff function, separate from the functions offered
 to students. You do not need to run `library(learncrimemapping)` first.
 
 Set the paths for this marking run. Replace the example paths with your own;
-use a new results folder for each run. In these examples, `~` means your home
+use a separate results folder for each batch and reuse it when resuming.
+In these examples, `~` means your home
 folder. Create a folder such as `marking/week-01` there and save the Moodle ZIP
 in it before running this code in the **R console**:
 
 - `submission_zip` is the ZIP you downloaded from Moodle.
-- `run_dir` is a new folder where the checker will save its results.
+- `run_dir` is the folder where the checker saves results. It may already contain
+  reports, a marking rubric or other instructor files.
 - `upload_dir` is a new folder used to organise the feedback for Moodle.
 - `feedback_zip` is the ZIP you will eventually upload to Moodle.
 
@@ -111,8 +113,8 @@ two CPUs; these defaults should be a starting point for typical exercises.
 
 The last two lines display the checking outcomes and open the overview in your
 web browser. Review the reports, including any errors, before sending them to
-students. Downloads and installed packages use disk space in `run_dir`, so make
-sure your computer has enough free space.
+students. Temporary downloads and installed packages use disk space in `run_dir`
+while each participant is checked, then are deleted after the report is saved.
 
 If students need files supplied with the exercise, add
 `workspace_template = "path/to/exercise-files"` to the call above, replacing the
@@ -127,13 +129,19 @@ The results directory contains:
 | `feedback/Participant_12345.html` | Individual portable HTML feedback report |
 | `manifest.csv` | Participant-to-report mapping and checking outcomes |
 | `results.rds` | Structured results for further review |
-| `submissions/` | Extracted original submissions |
-| `workspaces/` | Execution files and checker logs |
 
 Completed results are saved after each participant. If the batch is interrupted,
-keep those records, resolve the interruption and rerun into a **new** results
-directory. The checker cannot resume a partially completed run. Package only a completed,
-reviewed batch using the checks below.
+keep those records, resolve the interruption and rerun with the same `run_dir`.
+The checker skips existing reports by participant ID and generates missing reports.
+Existing reports and instructor files are preserved; the index, manifest and saved
+results are updated. To recheck a participant, move their report elsewhere first.
+Use the same archive and settings when resuming.
+
+Reports embed code, plots, styles and captured logs, so they remain usable after
+the extracted submissions and execution workspaces have been deleted and can be
+uploaded to Moodle. Paths to those temporary files in `results.rds` are historical
+references; keep the original Moodle ZIP for reviewing the source files. Package
+only a completed, reviewed batch using the checks below.
 
 
 ## 4. Put reports into the original Moodle folders and create the ZIP
@@ -250,8 +258,8 @@ Documents have their enabled R chunks checked; they are not rendered.
 Preinstalled libraries are read-only. Extra packages installed by student code,
 including through `pacman::p_load()`, go into that student's
 `/workspace/.sandbox/library`. The student code's home folder, temporary files and caches are also inside
-its working folder. These files remain in the marking results for inspection and
-are not shared with other students. Allow extra execution time for any package
+its working folder. These files are not shared with other students and are deleted after the
+report is saved. Allow extra execution time for any package
 compilation; missing system dependencies or network failures require assessor
 review. For an occasional exercise requiring GIF encoding, prepare an image
 with Rust/Cargo and `gifski` for that exercise.
@@ -263,6 +271,21 @@ Internet access remains enabled, including access to network services your
 computer can reach. Provide only login details or access tokens needed for the
 exercise. Keep the default Docker settings for student submissions;
 `backend = "local"` runs code directly on your computer without this protection.
+
+### CARTO API keys
+
+The Docker launcher forwards `CARTO_API_KEY` from the calling R session to
+each student's container. Before checking exercises that use CARTO maps,
+confirm that R has loaded your key:
+
+```r
+stopifnot(nzchar(Sys.getenv("CARTO_API_KEY")))
+```
+
+If necessary, load it with `readRenviron(path.expand("~/.Renviron"))`.
+Host startup files are not mounted into the container. Submitted code can
+read the forwarded key, so use a key scoped to the exercise's needs.
+Changes to the host key do not require rebuilding the image.
 
 ### When to rebuild
 

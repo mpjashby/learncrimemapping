@@ -58,7 +58,7 @@ test_that("staff batches add suggestions while student checks do not", {
   ids <- vapply(result$issues, function(x) x$id, character(1))
   expect_true(all(c('course.intermediate_objects', 'course.section_spacing') %in% ids))
   expect_match(paste(readLines(result$html_report), collapse = '\n'), 'course.intermediate_objects')
-  expect_match(paste(readLines(result$report), collapse = '\n'), 'course.section_spacing')
+  expect_match(paste(readLines(result$html_report), collapse = '\n'), 'course.section_spacing')
   disabled <- check_submissions(zip, tempfile(), reprex = FALSE, style = FALSE, backend = 'local')
   expect_length(disabled$results[[1L]]$issues, 0L)
 })

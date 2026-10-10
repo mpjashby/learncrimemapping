@@ -21,7 +21,8 @@ check_submissions(
 \arguments{
 \item{zip}{Path to a Moodle submission ZIP.}
 
-\item{output_dir}{A new or empty directory for persistent results.}
+\item{output_dir}{Directory for persistent results. Existing participant reports
+are skipped, and unrelated files are preserved.}
 
 \item{profile}{Named list with \code{name}, optional \code{expected_extension}, optional
 literal \code{required_declaration} to find in an R comment, and \code{text_output}
@@ -57,6 +58,8 @@ host. Web access remains enabled. Packages may be installed into the
 student's private library within that workspace, never the host library.
 R and system libraries inside the image remain readable. No automatic
 fallback to local execution occurs. Local execution is not a sandbox.
+Docker forwards \code{CARTO_API_KEY} from the calling R session when set.
+Submitted code can access this key; host startup files are not mounted.
 Quarto documents have enabled R chunks checked; full rendering is not done.
 ZIPs are limited to 5,000 entries and 100 MB of uncompressed content.
 Both named and anonymous Moodle folders are supported; report identities
@@ -65,7 +68,10 @@ With style checking enabled, staff batches also suggest reviewing chains of
 single-use intermediate objects and missing blank lines before section
 comments beside multiline statements. These advisory checks are not run
 by \code{\link[=check_code]{check_code()}} and require manual judgement.
-Existing results are never overwritten. Network failures and missing
+Existing participant reports are never overwritten. Batch metadata is updated
+after each new report. Extracted files and workspaces are temporary and
+removed after their self-contained HTML report has been saved.
+Network failures and missing
 credentials may need assessor review; they are not automatic penalties.
 }
 \keyword{internal}

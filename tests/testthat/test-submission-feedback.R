@@ -150,17 +150,16 @@ test_that("batch workspace roots are isolated and feedback matches the backend",
   expect_true(all(file.exists(file.path(output, batch$manifest$report))))
   expect_identical(batch$results$Participant_1$execution$status, "success")
   expect_identical(batch$results$Participant_2$execution$status, "error")
-  workspace <- file.path(output, "workspaces", "Participant_1")
-  expect_identical(readLines(file.path(workspace, "outputs", "root.txt")),
-                   normalizePath(workspace, winslash = "/"))
-  result <- batch$results$Participant_1
-  direct <- check_code_backend(result$file, execution_dir = workspace)
-  expect_identical(result$issues, direct$issues)
-  student <- NULL
-  suppressMessages(capture.output(student <- check_code(
-    result$file, execution_dir = workspace)))
-  expect_identical(result$issues, student$issues)
-  expect_error(suppressWarnings(check_submissions(zip, output, backend = "local")), "new or empty")
+  workspace <- batch$results$Participant_1$execution_dir
+  expect_false(dir.exists(workspace))
+  expect_false(file.exists(batch$results$Participant_1$file))
+  expect_false(dir.exists(file.path(output, "submissions")))
+  expect_false(dir.exists(file.path(output, "workspaces")))
+  before <- tools::md5sum(file.path(output, batch$manifest$report))
+  resumed <- suppressWarnings(check_submissions(zip, output, backend = "local"))
+  expect_identical(tools::md5sum(file.path(output, batch$manifest$report)), before)
+  expect_equal(resumed$manifest, batch$manifest)
+
 })
 
 test_that("invalid submissions receive reports while valid submissions continue", {
@@ -225,4 +224,68 @@ test_that("course package loading requires one p_load call or namespace-qualifie
     "pacman::p_load(sf)", "pacman::p_load(raster)")))
   expect_false("course.package_loading" %in% ids(c(
     "# library(raster)", 'x <- "library(raster)"')))
+})
+
+
+test_that("batches resume by report ID and preserve existing instructor files", {
+  zip <- feedback_zip(list(
+    "Participant_1_assignsubmission_file/a.R" = "plot(1:3)",
+    "Participant_2_assignsubmission_file/a.R" = "x <- 1"
+  ))
+  output <- tempfile("resume-")
+  dir.create(file.path(output, "feedback"), recursive = TRUE)
+  dir.create(file.path(output, "workspaces", "Participant_2"), recursive = TRUE)
+  rubric <- file.path(output, "workspaces", "Participant_2", "rubric.txt")
+  writeLines("Keep this rubric", rubric)
+  existing <- file.path(output, "feedback", "Participant_2.html")
+  writeLines("Existing reviewed report", existing)
+  before <- tools::md5sum(c(existing, rubric))
+  batch <- suppressWarnings(check_submissions(zip, output, backend = "local", style = FALSE))
+  expect_identical(tools::md5sum(c(existing, rubric)), before)
+  expect_setequal(batch$manifest$participant, c("Participant_1", "Participant_2"))
+  expect_null(batch$results$Participant_2)
+  html <- paste(readLines(batch$results$Participant_1$html_report), collapse = "\n")
+  expect_match(html, "data:image/png;base64,", fixed = TRUE)
+  expect_match(html, "plot", fixed = TRUE)
+  expect_false(file.exists(batch$results$Participant_1$file))
+  expect_false(dir.exists(batch$results$Participant_1$execution_dir))
+  expect_length(list.files(output, pattern = "^\\.submission-batch-", all.files = TRUE), 0L)
+  # Missing reports are regenerated even when their saved result is present.
+  unlink(batch$results$Participant_1$html_report)
+  resumed <- suppressWarnings(check_submissions(zip, output, backend = "local", style = FALSE))
+  expect_true(file.exists(resumed$results$Participant_1$html_report))
+  expect_identical(tools::md5sum(c(existing, rubric)), before)
+  # A completed Docker batch does not need Docker to be available again.
+  expect_no_error(check_submissions(zip, output, backend = "docker"))
+})
+
+test_that("an interrupted batch retains reports and resumes only unfinished participants", {
+  zip <- feedback_zip(list(
+    "Participant_1_assignsubmission_file/a.R" = "x <- 1",
+    "Participant_2_assignsubmission_file/a.R" = "x <- 2"
+  ))
+  output <- tempfile("interrupted-")
+  interrupted <- check_submissions
+  environment(interrupted) <- new.env(parent = environment(check_submissions))
+  writer <- write_code_feedback
+  environment(interrupted)$write_code_feedback <- function(result, file, participant) {
+    if (participant == "Participant_2") stop("Interrupted report generation")
+    writer(result, file, participant)
+  }
+  expect_error(interrupted(zip, output, backend = "local", reprex = FALSE),
+               "Interrupted report generation")
+  first <- file.path(output, "feedback", "Participant_1.html")
+  before <- tools::md5sum(first)
+  saved <- readRDS(file.path(output, "results.rds"))
+  expect_false(file.exists(saved$Participant_1$file))
+  expect_false(dir.exists(saved$Participant_1$execution_dir))
+  expect_length(list.files(output, pattern = "^\\.submission-batch-", all.files = TRUE), 0L)
+  resumed <- check_submissions(zip, output, backend = "local", reprex = FALSE)
+  expect_identical(tools::md5sum(first), before)
+  expect_equal(nrow(resumed$manifest), 2L)
+  expect_true(all(file.exists(file.path(output, resumed$manifest$report))))
+  upload <- tempfile("upload-")
+  feedback <- tempfile(fileext = ".zip")
+  listing <- suppressMessages(package_moodle_feedback(zip, output, upload, feedback))
+  expect_equal(nrow(listing), 2L)
 })

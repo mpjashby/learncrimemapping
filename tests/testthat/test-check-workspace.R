@@ -213,7 +213,8 @@ test_that("Windows tools checks distinguish missing, detected and unavailable to
   local_workspace_mocks(folder, workspace_os = function() "Windows", workspace_rtools = function() FALSE)
   report <- workspace_report(folder)
   expect_identical(check_status(report, "rtools"), "problem")
-  expect_identical(check_status(report, "windows.redistributable"), "manual")
+  expect_false("windows.redistributable" %in% names(report$result$checks))
+  expect_false(grepl("Visual C++", report$output, fixed = TRUE))
   expect_match(report$output, "matching your running R version")
   local_workspace_bindings(workspace_rtools = function() TRUE, .package = "learncrimemapping")
   expect_identical(check_status(workspace_report(folder), "rtools"), "passed")
@@ -644,4 +645,18 @@ test_that("introduction explains the course purpose and links to unversioned cha
   expect_match(prose, "https://books.lesscrime.info/learncrimemapping/setup.html", fixed = TRUE)
   expect_match(prose, "https://books.lesscrime.info/learncrimemapping/01_getting_started/", fixed = TRUE)
   expect_false(grepl("/learncrimemapping/[0-9]{4}/", introduction))
+})
+
+test_that("workspace checker suggests create_dirs only for a fresh current workspace", {
+  folder <- workspace_fixture()
+  withr::local_dir(folder)
+  local_workspace_mocks(folder)
+  unlink(file.path(folder, c("data", "R", "output")), recursive = TRUE)
+  report <- workspace_report()
+  expect_match(report$result$checks[["directory.data"]]$actions[[2]],
+               "learncrimemapping::create_dirs()", fixed = TRUE)
+  dir.create(file.path(folder, "R"))
+  report <- workspace_report()
+  expect_match(report$result$checks[["directory.data"]]$actions[[2]],
+               "dir.create", fixed = TRUE)
 })

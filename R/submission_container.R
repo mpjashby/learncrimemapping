@@ -1,7 +1,15 @@
 # Arguments are passed directly to processx, never interpreted by a shell.
 submission_docker <- function(docker, args, timeout = 30000) {
-  processx::run(docker, args, timeout = timeout, error_on_status = TRUE,
-                echo = FALSE)
+  tryCatch(processx::run(docker, args, timeout = timeout, error_on_status = TRUE,
+                        echo = FALSE), error = function(cnd) {
+    # processx's summary omits the daemon's explanation of launch failures.
+    if (inherits(cnd, "system_command_status_error") &&
+        is.character(cnd$stderr) && nzchar(trimws(cnd$stderr))) {
+      stop(paste0("Docker command failed (", args[1], "): ", trimws(cnd$stderr)),
+           call. = FALSE)
+    }
+    stop(cnd)
+  })
 }
 
 submission_container_config <- function(image, memory, cpus) {
@@ -60,7 +68,9 @@ submission_container_args <- function(workspace, name, config) {
     "--memory", config$memory, "--memory-swap", config$memory,
     "--cpus", as.character(config$cpus), "--pids-limit", "256",
     "--log-driver", "local", "--log-opt", "max-size=5m",
-    "--log-opt", "max-file=1", "--network", "bridge", "--ipc", "none",
+    # The local driver defaults to compression, which requires multiple files.
+    "--log-opt", "max-file=1", "--log-opt", "compress=false",
+    "--network", "bridge", "--ipc", "none",
     "--mount", paste0("type=bind,source=", workspace, ",target=/workspace"),
     "--workdir", "/workspace",
     "--env", "HOME=/workspace/.sandbox/home",
@@ -69,6 +79,9 @@ submission_container_args <- function(workspace, name, config) {
     "--env", "XDG_CACHE_HOME=/workspace/.sandbox/cache",
     "--env", "XDG_CONFIG_HOME=/workspace/.sandbox/config",
     "--env", "XDG_DATA_HOME=/workspace/.sandbox/data",
+    # Forward only this course service key; Docker reads it from the host
+    # process environment, keeping its value out of the command arguments.
+    "--env", "CARTO_API_KEY",
     "--env", "R_ENVIRON_USER=/dev/null", "--env", "R_PROFILE_USER=/dev/null",
     "--entrypoint", "Rscript", config$image,
     "--vanilla", "/opt/learncrimemapping-runner.R")

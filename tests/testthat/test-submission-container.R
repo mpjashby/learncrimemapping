@@ -9,7 +9,24 @@ test_that("container launch exposes only the student workspace and drops privile
   expect_true("bridge" %in% args)
   expect_identical(args[which(args == "--platform") + 1L], "linux/amd64")
   expect_false(any(grepl("docker.sock|--privileged|--publish", args)))
+  expect_true(all(c("max-size=5m", "max-file=1", "compress=false") %in% args))
   expect_error(submission_container_args("/tmp/a,b", "test", config), "commas")
+})
+
+test_that("Docker command failures retain stderr for batch feedback", {
+  skip_on_os("windows")
+  expect_error(submission_docker("/bin/sh", c("-c", "echo 'daemon launch detail' >&2; exit 1")),
+               "daemon launch detail")
+})
+
+test_that("CARTO credentials are forwarded by name without exposing their value", {
+  withr::local_envvar(c(CARTO_API_KEY = "fixture-secret", OTHER_API_KEY = "unrelated-secret"))
+  config <- list(image = "sha256:example", memory = "4g", cpus = 2,
+                 user = "1000:1000", platform = "linux/arm64")
+  args <- submission_container_args("/tmp/workspace", "test-student", config)
+  variables <- args[which(args == "--env") + 1L]
+  expect_true("CARTO_API_KEY" %in% variables)
+  expect_false(any(grepl("fixture-secret|unrelated-secret|OTHER_API_KEY", args)))
 })
 
 test_that("container configuration rejects unsafe or invalid settings", {
@@ -87,10 +104,10 @@ test_that("Docker isolates host files, students, package installs and system wri
                             container_image = Sys.getenv("LCM_TEST_IMAGE", "learncrimemapping-checker:local"))
   expect_identical(batch$manifest$execution, c("success", "success"))
   expect_identical(readLines(host_file), "host sentinel")
-  expect_true(file.exists(file.path(output, "workspaces", "Participant_1", "outputs", "web.txt")))
+  expect_false(dir.exists(batch$results$Participant_1$execution_dir))
   plots <- Filter(function(e) e$kind == "plot", batch$results$Participant_1$execution$events)
   expect_length(plots, 1L)
-  expect_true(file.exists(plots[[1]]$plot))
+  expect_false(file.exists(plots[[1]]$plot))
   expect_false(dir.exists(file.path(.libPaths()[1], "lcmisolationfixture")))
   expect_match(paste(readLines(batch$results$Participant_1$html_report), collapse = ""), "data:image/png")
 })
