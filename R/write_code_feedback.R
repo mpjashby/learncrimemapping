@@ -149,7 +149,7 @@ feedback_initial_checks <- function(result) {
     x$id == "course.checker_in_script", logical(1)))
   runtime <- if (syntax$status == "error") "not checked (syntax error)" else
     if ("error" %in% kinds || embedded_checker) "yes" else
-      if (execution_complete) "no" else "full check not possible – check for errors below"
+      if (execution_complete) "no" else "full check not possible \u2013 check for errors below"
   checked_style <- !is.null(result$checks$style) && isTRUE(result$checks$style)
   if (is.null(result$checks)) checked_style <- result$execution$status != "skipped" ||
     nrow(result$lints) > 0L
@@ -157,9 +157,9 @@ feedback_initial_checks <- function(result) {
     "Code free of syntax errors" = switch(syntax$status, valid = "no", error = "yes", "not checked"),
     "Code free of runtime errors" = runtime,
     "Code free of runtime warnings" = if ("warning" %in% kinds) "yes" else
-      if (execution_complete) "no" else "full check not possible – check for errors below",
+      if (execution_complete) "no" else "full check not possible \u2013 check for errors below",
     "Execution environment checks passed" = if ("environment" %in% categories) "yes" else
-      if (execution_complete || checked_style) "no" else "full check not possible – check for errors below",
+      if (execution_complete || checked_style) "no" else "full check not possible \u2013 check for errors below",
     "Code execution stayed within the time limit" = if (result$execution$status == "timeout") "yes" else
       if (execution_complete) "no" else "not checked",
     "Automated checker free of failures" = if (result$execution$status == "failed" ||
@@ -170,9 +170,9 @@ feedback_initial_checks <- function(result) {
     status <- checks[[i]]
     class <- if (status == "no") "pass" else if (status == "yes") "fail" else "incomplete"
     marker <- switch(class,
-      pass = "<span role='img' aria-label='Passed'>✅</span>",
-      fail = "<span role='img' aria-label='Problem found'>❌</span>",
-      incomplete = paste0("<span role='img' aria-label='Check incomplete'>⚪</span> ",
+      pass = "<span role='img' aria-label='Passed'>\u2705</span>",
+      fail = "<span role='img' aria-label='Problem found'>\u274c</span>",
+      incomplete = paste0("<span role='img' aria-label='Check incomplete'>\u26aa</span> ",
                           toupper(substr(status, 1L, 1L)), substring(status, 2L)))
     label <- names(checks)[i]
     if (i == 1L && syntax$status == "error") {
@@ -202,7 +202,7 @@ feedback_submitted_code <- function(result) {
   extracted <- if (tolower(tools::file_ext(result$file)) == "r") lines else
     tryCatch(read_check_code(result$file, tolower(tools::file_ext(result$file))),
              error = function(cnd) character())
-  pd <- tryCatch(getParseData(parse(text = extracted, keep.source = TRUE)),
+  pd <- tryCatch(utils::getParseData(parse(text = extracted, keep.source = TRUE)),
                  error = function(cnd) NULL)
   classes <- c(COMMENT = "comment", STR_CONST = "string", NUM_CONST = "number",
                SYMBOL_FUNCTION_CALL = "function", SYMBOL_PACKAGE = "function",

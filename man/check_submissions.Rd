@@ -61,6 +61,10 @@ Quarto documents have enabled R chunks checked; full rendering is not done.
 ZIPs are limited to 5,000 entries and 100 MB of uncompressed content.
 Both named and anonymous Moodle folders are supported; report identities
 use numeric participant IDs, and original archive paths are retained.
+With style checking enabled, staff batches also suggest reviewing chains of
+single-use intermediate objects and missing blank lines before section
+comments beside multiline statements. These advisory checks are not run
+by \code{\link[=check_code]{check_code()}} and require manual judgement.
 Existing results are never overwritten. Network failures and missing
 credentials may need assessor review; they are not automatic penalties.
 }

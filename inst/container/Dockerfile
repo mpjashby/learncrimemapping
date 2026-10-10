@@ -1,4 +1,5 @@
-# Build from the repository root; .dockerignore limits the build context.
+# Build from the repository root or the installed-package helper
+# build_checker_image(), which supplies a temporary context of trusted files.
 # R only: this multi-platform base contains neither RStudio Server nor TeX.
 FROM rocker/r-ver:4.5.3@sha256:c3f39b365d1077fe24f8e9ab2742e352b6d3950897f51af1624a5bb5550c21c0
 USER root

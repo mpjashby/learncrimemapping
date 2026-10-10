@@ -154,7 +154,7 @@ code_course_issues <- function(file, profile) {
               code_comment_issues(file))
   # Inspect parsed calls, so strings, comments and disabled chunks do not match.
   if (!is.null(expressions)) {
-    pd <- getParseData(expressions)
+    pd <- utils::getParseData(expressions)
     if (is.null(pd)) pd <- data.frame(token = character(), text = character(),
                                       line1 = integer(), col1 = integer())
     calls <- pd[pd$token == "SYMBOL_FUNCTION_CALL" &
@@ -197,7 +197,7 @@ code_course_issues <- function(file, profile) {
   if (!is.null(profile$required_declaration)) {
     # A required declaration must occur in a comment, not an executable string.
     comments <- if (is.null(expressions)) character() else {
-      pd <- getParseData(expressions)
+      pd <- utils::getParseData(expressions)
       pd$text[pd$token == "COMMENT"]
     }
     if (!any(grepl(profile$required_declaration, comments, fixed = TRUE))) {
@@ -295,7 +295,7 @@ interpret_code_feedback <- function(result) {
       # Setup/import information is retained in the event log, but not treated
       # as unnecessary output. Unknown messages are explicitly review prompts.
       informational <- grepl(
-        paste0("^(ℹ[[:space:]]*|i[[:space:]]+)?(Attaching (package|core tidyverse)|──|Rows: [0-9]|Columns: [0-9]|",
+        paste0("^(\u2139[[:space:]]*|i[[:space:]]+)?(Attaching (package|core tidyverse)|\u2500\u2500|Rows: [0-9]|Columns: [0-9]|",
                "Column specification|Delimiter:|Use `spec\\(|Specify the column types|",
                "Linking to GEOS|Loading required (package|namespace):|Registered S3 method|",
                "The following objects? (is|are) masked (from|by)|here\\(\\) starts at)"),
@@ -397,7 +397,7 @@ code_feedback_events <- function(result) {
 code_enclosing_call <- function(file, line, column) {
   lines <- read_check_code(file, tolower(tools::file_ext(file)))
   parsed <- tryCatch(parse(text = lines, keep.source = TRUE), error = function(e) NULL)
-  pd <- getParseData(parsed)
+  pd <- utils::getParseData(parsed)
   if (is.null(pd)) return(NULL)
   calls <- pd[pd$token == "'('", , drop = FALSE]
   spans <- pd[pd$id %in% calls$parent & pd$line1 <= line & pd$line2 >= line, , drop = FALSE]
@@ -489,7 +489,7 @@ code_feedback_parse_data <- function(file) {
   source <- srcfilecopy(file, lines)
   tryCatch(parse(text = lines, srcfile = source, keep.source = TRUE),
            error = function(e) NULL)
-  list(lines = lines, tokens = getParseData(source))
+  list(lines = lines, tokens = utils::getParseData(source))
 }
 
 code_name_lint_messages <- function(lints, file) {

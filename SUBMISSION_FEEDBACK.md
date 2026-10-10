@@ -7,11 +7,10 @@ return fields remain available; `profile`, `issues` and `scope` are additions.
 
 ## A weekly batch
 
-Marking helpers are internal. From the repository root, load them locally:
+Install the package from the development checkout as described in
+[MARKING.md](MARKING.md). `check_submissions()` remains internal and can be called as
+`learncrimemapping:::check_submissions()` from the separate marking project.
 
-```r
-devtools::load_all()
-```
 
 ```r
 week_01 <- list(
@@ -19,7 +18,7 @@ week_01 <- list(
   expected_extension = "R"
 )
 
-batch <- check_submissions(
+batch <- learncrimemapping:::check_submissions(
   zip = "SECU0005_26-27-Upload your code for the Week 1 exercise-9071365.zip",
   output_dir = "feedback/week-01",
   profile = week_01,

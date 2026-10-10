@@ -2,3 +2,24 @@
 .Rhistory
 .RData
 .Ruserdata
+.Rapp.history
+.Renviron
+
+# Operating-system and editor files
+.DS_Store
+*~
+*.bak
+*.swp
+*.swo
+.#*
+\#*#
+
+# Local R output and package build/check artifacts
+Rplots.pdf
+/learncrimemapping_*.tar.gz
+/learncrimemapping_*.tgz
+/learncrimemapping_*.zip
+/*.Rcheck/
+
+# Generated during package installation by configure
+inst/container/R/

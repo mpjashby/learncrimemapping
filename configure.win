@@ -1,0 +1,5 @@
+#!/bin/sh
+# Bundle the current checker sources during installation (including GitHub installs).
+set -eu
+mkdir -p inst/container/R
+cp R/check_code.R R/code_feedback.R R/spatial_feedback.R inst/container/R/

@@ -4,7 +4,11 @@
 ^\.github$
 ^tests/manual-feedback$
 ^MARKING\.md$
-^SUBMISSION_FEEDBACK(-.*)?\.md$
+^SUBMISSION_FEEDBACK\.md$
 
 ^\.dockerignore$
-^inst/container$
+^\.Ruserdata$
+^Rplots\.pdf$
+^learncrimemapping_.*\.(tar\.gz|tgz|zip)$
+^inst/container/R$
+^(MARKING|SUBMISSION_FEEDBACK)-.*\.md$

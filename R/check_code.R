@@ -513,7 +513,7 @@ filter_literal_length_lints <- function(lints, file) {
   # A later syntax mistake must not turn an earlier valid URL into a style issue.
   tryCatch(parse(text = lines, srcfile = source, keep.source = TRUE),
            error = function(e) NULL)
-  tokens <- getParseData(source)
+  tokens <- utils::getParseData(source)
   if (is.null(tokens)) return(lints)
   literals <- tokens[tokens$token == "STR_CONST" & tokens$line1 == tokens$line2, , drop = FALSE]
   discard <- vapply(seq_len(nrow(lints)), function(i) {

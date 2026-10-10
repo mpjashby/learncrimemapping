@@ -29,6 +29,10 @@
 #'   ZIPs are limited to 5,000 entries and 100 MB of uncompressed content.
 #'   Both named and anonymous Moodle folders are supported; report identities
 #'   use numeric participant IDs, and original archive paths are retained.
+#'   With style checking enabled, staff batches also suggest reviewing chains of
+#'   single-use intermediate objects and missing blank lines before section
+#'   comments beside multiline statements. These advisory checks are not run
+#'   by [check_code()] and require manual judgement.
 #'   Existing results are never overwritten. Network failures and missing
 #'   credentials may need assessor review; they are not automatic penalties.
 #' @keywords internal
@@ -143,6 +147,7 @@ check_submissions <- function(zip, output_dir, profile = list(),
         invalid_submission_result(file, profile, conditionMessage(cnd), checker = TRUE)
       })
     }
+    if (valid && style) result <- add_marking_style_feedback(result)
     target <- file.path(output_dir, "feedback", paste0(participant, ".html"))
     result$html_report <- write_code_feedback(result, target, participant)
     result$participant <- participant
@@ -230,8 +235,96 @@ write_submission_index <- function(manifest, file, profile) {
     "<title>Submission feedback</title>",
     paste0("<style>", feedback_html_css(), "</style></head><body><main>"),
     "<header><p class='eyebrow'>SECU0005 Crime Mapping</p><h1>Submission feedback</h1></header>",
-    paste0("<p>", e(profile$name), " · ", nrow(manifest), " submissions checked</p>"),
+    paste0("<p>", e(profile$name), " \u00b7 ", nrow(manifest), " submissions checked</p>"),
     "<p>Assessor index. Issue counts include suggestions and review prompts, and are not marks.</p>",
     "<table><thead><tr><th>Participant / report</th><th>Status</th><th>Issues</th><th>Review</th></tr></thead><tbody>",
     rows, "</tbody></table></main></body></html>"), file, useBytes = TRUE)
+}
+
+# Staff-only suggestions run on the host after either execution backend. This
+# keeps student check_code() and the public function signatures unchanged.
+add_marking_style_feedback <- function(result) {
+  findings <- tryCatch(marking_style_issues(result$file), error = function(cnd) {
+    list(code_issue("checker.marking_style", "incomplete",
+      "The additional marking style checks could not be completed.",
+      "The assessor should investigate and rerun.", evidence = conditionMessage(cnd)))
+  })
+  result$issues <- code_order_issues(c(result$issues, findings))
+  if (!is.null(result$report)) write_check_report(result)
+  result
+}
+
+marking_style_issues <- function(file) {
+  lines <- read_check_code(file, tolower(tools::file_ext(file)))
+  expressions <- tryCatch(parse(text = lines, keep.source = TRUE),
+                          error = function(cnd) NULL)
+  # Do not infer chains or section boundaries from incomplete syntax.
+  if (is.null(expressions) || length(expressions) < 2L) return(list())
+  refs <- attr(expressions, "srcref")
+  pd <- utils::getParseData(expressions)
+  starts <- vapply(refs, function(x) as.integer(x[1L]), integer(1))
+  ends <- vapply(refs, function(x) as.integer(x[3L]), integer(1))
+  issues <- list()
+  add <- function(x) issues[[length(issues) + 1L]] <<- x
+
+  for (i in seq.int(2L, length(expressions))) {
+    gap <- seq.int(ends[i - 1L] + 1L, starts[i] - 1L)
+    if (starts[i] <= ends[i - 1L] + 1L) next
+    # Only standalone prose comment blocks between complete statements.
+    if (any(!nzchar(trimws(lines[gap]))) ||
+        !all(grepl("^\\s*#", lines[gap], perl = TRUE)) ||
+        any(grepl("^\\s*#([!'|]|\\s*nolint\\b)", lines[gap], perl = TRUE)) ||
+        !any(grepl("[[:alpha:]]", lines[gap])) ||
+        (starts[i] == ends[i] && starts[i - 1L] == ends[i - 1L])) next
+    add(code_issue("course.section_spacing", "style",
+      "This comment appears to introduce a new step without a blank line before it.",
+      paste("Consider adding a blank line before the comment to make the steps easier to distinguish.",
+            "Keep the comment next to the code it describes; decide whether these statements belong together."),
+      gap[1L], 1L, lines[gap[1L]]))
+  }
+
+  assignment <- function(x) is.call(x) && identical(x[[1L]], as.name("<-")) &&
+    length(x) == 3L && is.symbol(x[[2L]])
+  assigned <- vapply(expressions, function(x) {
+    if (assignment(x)) as.character(x[[2L]]) else ""
+  }, character(1))
+  # Restrict consumers to familiar transformations with the data as first input.
+  transforms <- c("select", "filter", "mutate", "transmute", "arrange",
+                  "rename", "relocate", "distinct", "group_by", "ungroup",
+                  "summarise", "summarize", "slice", "slice_head", "slice_tail")
+  consumes <- function(x, name) {
+    if (!assignment(x)) return(FALSE)
+    call <- x[[3L]]
+    if (!is.call(call) || length(call) < 2L ||
+        !identical(call[[2L]], as.name(name))) return(FALSE)
+    head <- call[[1L]]
+    if (is.call(head) && length(head) == 3L &&
+        identical(head[[1L]], as.name("::")) &&
+        identical(head[[2L]], as.name("dplyr"))) head <- head[[3L]]
+    is.symbol(head) && as.character(head) %in% transforms
+  }
+  # Counting all parsed names is deliberately conservative, including nested
+  # uses and assignments. Dynamic lookup makes single-use inference uncertain.
+  names <- unlist(lapply(expressions, all.names), use.names = FALSE)
+  if (any(names %in% c("get", "mget", "eval", "evalq", "parse", "source",
+                        "sys.source", "assign", "substitute", "sym", "syms"))) return(issues)
+  links <- vapply(seq_len(length(expressions) - 1L), function(i) {
+    name <- assigned[i]
+    nzchar(name) && sum(names == name) == 2L &&
+      consumes(expressions[[i + 1L]], name) && assigned[i + 1L] != name
+  }, logical(1))
+  runs <- rle(links)
+  finish <- cumsum(runs$lengths)
+  for (j in which(runs$values & runs$lengths >= 2L)) {
+    first <- finish[j] - runs$lengths[j] + 1L
+    last <- finish[j] + 1L
+    add(code_issue("course.intermediate_objects", "style",
+      "These steps create intermediate objects that appear to be used only by the following step.",
+      paste("Consider combining them into a pipeline to reduce the number of objects you need to track.",
+            "Keep separate objects if their names help explain the steps or you need to inspect intermediate results.",
+            "This suggestion is based on references in this submitted file only."),
+      starts[first], as.integer(refs[[first]][5L]),
+      paste(lines[seq.int(starts[first], ends[last])], collapse = "\n")))
+  }
+  issues
 }
