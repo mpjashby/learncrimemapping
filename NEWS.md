@@ -1,3 +1,8 @@
+# learncrimemapping 2.3.1
+
+* Add issues summary report to marking output.
+
+
 # learncrimemapping 2.3.0
 
 * Add `create_dirs()` function to setup required directory structure inside the

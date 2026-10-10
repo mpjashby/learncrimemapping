@@ -11,5 +11,6 @@
 ^Rplots\.pdf$
 ^learncrimemapping_.*\.(tar\.gz|tgz|zip)$
 ^inst/container/R$
-^(MARKING|SUBMISSION_FEEDBACK)-.*\.md$
-TODO.md
+^MARKING\.md$
+^TECHNICAL_GUIDE\.md$
+^TODO\.md$

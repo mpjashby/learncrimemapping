@@ -7,6 +7,7 @@ test_that("batch counts unique issue types while reports keep each occurrence", 
   output <- tempfile("unique-issues-")
   withr::defer(unlink(output, recursive = TRUE))
   batch <- check_submissions(zip, output, backend = "local", reprex = FALSE)
+  expect_true(file.exists(batch$issue_summary))
   result <- batch$results$Participant_1
   ids <- vapply(result$issues, `[[`, character(1), "id")
   expect_gte(sum(ids == "lint.line_length_linter"), 2L)

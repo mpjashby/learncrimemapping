@@ -2,7 +2,8 @@
 #'
 #' Uses the same backend and issue interpretation as [check_code()]. Each
 #' Moodle participant receives a portable HTML report, including invalid
-#' submissions. A batch index, CSV manifest and RDS results are also retained.
+#' submissions. A batch index, common-issue HTML summary, CSV manifest and
+#' RDS results are also retained.
 #'
 #' @param zip Path to a Moodle submission ZIP.
 #' @param output_dir Directory for persistent results. Existing participant reports
@@ -19,7 +20,8 @@
 #'   course dependencies. See `MARKING.md` for build instructions.
 #' @param container_memory Docker memory limit for each student.
 #' @param container_cpus Maximum CPUs available to each student.
-#' @return Invisibly, a list with `manifest`, named `results`, and `index`.
+#' @return Invisibly, a list with `manifest`, named `results`, `index`, and
+#'   `issue_summary` (the common-issue HTML report path).
 #' @details Docker checking uses fresh, unprivileged containers with a read-only
 #'   system filesystem. Only the current student's workspace is mounted from the
 #'   host. Web access remains enabled. Packages may be installed into the
@@ -206,13 +208,16 @@ check_submissions <- function(zip, output_dir, profile = list(),
     utils::write.csv(manifest, file.path(output_dir, "manifest.csv"), row.names = FALSE)
     saveRDS(results, file.path(output_dir, "results.rds"))
     write_submission_index(manifest, file.path(output_dir, "index.html"), profile)
+    write_submission_issue_summary(manifest, results, file.path(output_dir, "issues.html"), profile)
   }
   manifest <- do.call(rbind, unname(rows[identities]))
   utils::write.csv(manifest, manifest_file, row.names = FALSE)
   saveRDS(results, results_file)
   write_submission_index(manifest, file.path(output_dir, "index.html"), profile)
+  write_submission_issue_summary(manifest, results, file.path(output_dir, "issues.html"), profile)
   result <- list(manifest = manifest, results = results,
-                 index = file.path(output_dir, "index.html"))
+                 index = file.path(output_dir, "index.html"),
+                 issue_summary = file.path(output_dir, "issues.html"))
   cli::cli_text("Batch reports: {.file {result$index}}")
   invisible(result)
 }
@@ -282,6 +287,7 @@ write_submission_index <- function(manifest, file, profile) {
     "<header><p class='eyebrow'>SECU0005 Crime Mapping</p><h1>Submission feedback</h1></header>",
     paste0("<p>", e(profile$name), " \u00b7 ", nrow(manifest), " submissions checked</p>"),
     "<p>Assessor index. Issue counts count each type of issue once, include suggestions and review prompts, and are not marks.</p>",
+    "<p><a href='issues.html'>Most common issues across submissions</a></p>",
     "<table><thead><tr><th>Participant / report</th><th>Status</th><th>Issues</th><th>Review</th></tr></thead><tbody>",
     rows, "</tbody></table></main></body></html>"), file, useBytes = TRUE)
 }

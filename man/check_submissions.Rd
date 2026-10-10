@@ -44,12 +44,14 @@ course dependencies. See \code{MARKING.md} for build instructions.}
 \item{container_cpus}{Maximum CPUs available to each student.}
 }
 \value{
-Invisibly, a list with \code{manifest}, named \code{results}, and \code{index}.
+Invisibly, a list with \code{manifest}, named \code{results}, \code{index}, and
+\code{issue_summary} (the common-issue HTML report path).
 }
 \description{
 Uses the same backend and issue interpretation as \code{\link[=check_code]{check_code()}}. Each
 Moodle participant receives a portable HTML report, including invalid
-submissions. A batch index, CSV manifest and RDS results are also retained.
+submissions. A batch index, common-issue HTML summary, CSV manifest and
+RDS results are also retained.
 }
 \details{
 Docker checking uses fresh, unprivileged containers with a read-only

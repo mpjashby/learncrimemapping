@@ -125,6 +125,7 @@ The results directory contains:
 
 | Path | Purpose |
 | --- | --- |
+| `issues.html` | Issues ranked by distinct submission count, with code examples and links to individual source reports |
 | `index.html` | Assessor overview with links to individual reports |
 | `feedback/Participant_12345.html` | Individual portable HTML feedback report |
 | `manifest.csv` | Participant-to-report mapping and checking outcomes |
