@@ -1,3 +1,11 @@
+# learncrimemapping (development version)
+
+* Require R 4.3.0 to support the current course dependencies, including dbscan
+  through sfhotspot. Check this minimum version in GitHub Actions.
+* Fix the Windows installation smoke test by comparing canonical library paths
+  with consistent separators and reporting both paths if they differ.
+
+
 # learncrimemapping 2.3.1
 
 * Add issues summary report to marking output.

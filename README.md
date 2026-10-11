@@ -9,6 +9,9 @@ book [_Learn Crime Mapping with R_](https://books.lesscrime.info/learncrimemappi
 
 ## Installation
 
+The package requires R 4.3.0 or later so that the current course dependencies
+can be installed.
+
 This package is not on CRAN so you should install the GitHub version using the remotes package:
 
 ``` r
@@ -43,3 +46,18 @@ For R Markdown and Quarto documents, enabled R chunks are extracted and checked.
 Static checks use a course configuration, including complexity checking, and ignore local lintr configuration. Feedback distinguishes likely correctness problems, missing packages, and style suggestions. Long string literals (e.g. URLs) are excluded from the 80-character line limit so URLs and paths need not be broken up. These checks suggest improvements; they cannot establish that an analysis is correct.
 
 Passing the result produced by `check_code()` to `write_code_feedback()` produces an HTML report showing the check results.
+
+## Package checks
+
+GitHub Actions runs full package checks and installation smoke tests on Linux,
+macOS and Windows with release R, and on Linux with R 4.3, the previous release
+and R-devel. The installation smoke test checks a fresh package library and
+the bundled container resources. Separate workflows check Docker integration,
+workflow and shell validity, and generated documentation. Checks run on pushes,
+pull requests and weekly schedules, and can also be started manually.
+
+To run the package checks locally, install the package dependencies,
+`rcmdcheck` and `pkgbuild`, then run
+`Rscript .github/scripts/check-package.R` from the repository root. The output
+is saved in the ignored `check/` directory. Checks allow the recorded
+metapackage unused-Imports note and fail on errors, warnings or other notes.

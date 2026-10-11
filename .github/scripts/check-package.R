@@ -42,8 +42,16 @@ invisible(processx::run(
 callr::r(function(library_path) {
   .libPaths(c(library_path, .libPaths()))
   library(learncrimemapping)
-  stopifnot(identical(dirname(normalizePath(find.package("learncrimemapping"))),
-                      normalizePath(library_path)))
+  actual_library <- normalizePath(
+    dirname(find.package("learncrimemapping")), winslash = "/", mustWork = TRUE
+  )
+  expected_library <- normalizePath(
+    library_path, winslash = "/", mustWork = TRUE
+  )
+  if (!identical(actual_library, expected_library)) {
+    stop(sprintf("Package loaded from %s; expected %s",
+                 actual_library, expected_library))
+  }
   root <- tempfile()
   dir.create(root)
   workspace <- file.path(root, "crime_mapping")

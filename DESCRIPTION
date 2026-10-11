@@ -19,7 +19,7 @@ URL: https://books.lesscrime.info/learncrimemapping/,
     https://github.com/mpjashby/learncrimemapping
 BugReports: https://github.com/mpjashby/learncrimemapping/issues
 Depends:
-    R (>= 4.1.0)
+    R (>= 4.3.0)
 Imports:
     callr (>= 3.7.0),
     cli,
