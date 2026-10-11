@@ -45,8 +45,8 @@ course dependencies. See \code{MARKING.md} for build instructions.}
 \item{container_cpus}{Maximum CPUs available to each student.}
 
 \item{tile_cache}{Directory shared by Docker submissions for the default
-\code{rosm.cache} tile cache. Defaults to \code{rosm.cache} inside \code{output_dir}
-and persists across resumed batches. Use a separate directory for each exercise.
+\code{rosm.cache} tile cache. Defaults to \code{rosm.cache} inside \code{output_dir} and
+persists across resumed batches. Use a separate directory for each exercise.
 Set to \code{NULL} to disable sharing. Ignored by the local backend.}
 }
 \value{

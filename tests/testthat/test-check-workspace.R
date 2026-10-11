@@ -313,7 +313,15 @@ test_that("actual CARTO file inspection obeys startup selection and redacts secr
     expect_identical(workspace_saved_key(folder)$source, "R_ENVIRON_USER")
     expect_identical(workspace_saved_key(folder)$state, "unknown")
   })
-  withr::with_envvar(c(R_ENVIRON_USER = ""), expect_identical(workspace_saved_key(folder)$state, "unknown"))
+  # Windows removes an environment variable when it is assigned an empty value.
+  # Exercise the parser's empty-value branch directly on every platform.
+  real_getenv <- Sys.getenv
+  empty_value_parser <- workspace_saved_key
+  environment(empty_value_parser) <- new.env(parent = environment(workspace_saved_key))
+  environment(empty_value_parser)$Sys.getenv <- function(x, ...) {
+    if (identical(x, "R_ENVIRON_USER")) "" else real_getenv(x, ...)
+  }
+  expect_identical(empty_value_parser(folder)$state, "unknown")
   # Use the real saved-key parser and real presence check for the full report.
   saved_parser <- workspace_saved_key
   presence <- workspace_key_present
@@ -567,9 +575,13 @@ test_that("status labels use the requested weight and colours with plain-text fa
 })
 
 test_that("Posit Cloud's Project label is accepted without weakening local folder checks", {
-  expect_true(workspace_cloud_folder("/cloud/project"))
-  expect_false(workspace_cloud_folder("/cloud/project/other"))
-  expect_false(workspace_cloud_folder(file.path(tempdir(), "Project")))
+  # The cloud path belongs to a Linux filesystem, even when tested on Windows.
+  local({
+    local_workspace_bindings(workspace_path = function(path) path)
+    expect_true(workspace_cloud_folder("/cloud/project"))
+    expect_false(workspace_cloud_folder("/cloud/project/other"))
+    expect_false(workspace_cloud_folder(file.path(tempdir(), "Project")))
+  })
   folder <- workspace_fixture("Project")
   withr::local_dir(folder)
   local_workspace_mocks(folder, workspace_cloud_folder = function(path) workspace_same_path(path, folder))

@@ -17,7 +17,7 @@ test_that("named and anonymous Moodle exports preserve IDs and reject ambiguous 
 
 test_that("syntax failures prevent side effects and report the original document line", {
   marker <- tempfile()
-  code <- c(sprintf('file.create("%s")', marker), ")")
+  code <- c(sprintf('file.create(%s)', encodeString(marker, quote = '"')), ")")
   result <- check_code_backend(feedback_fixture(code))
   expect_false(file.exists(marker))
   expect_match(result$issues[[1]]$action, "none of the code could be run or checked for runtime issues", fixed = TRUE)
@@ -67,7 +67,8 @@ test_that("routine R setup messages are retained in Quarto feedback and raw logs
 test_that("embedded checker calls receive specific feedback before they can execute", {
   for (call in c("learncrimemapping::check_code()", "check_code(\"script.R\")")) {
     marker <- tempfile()
-    result <- check_code_backend(feedback_fixture(c(sprintf('file.create("%s")', marker), call)),
+    result <- check_code_backend(feedback_fixture(c(
+      sprintf('file.create(%s)', encodeString(marker, quote = '"')), call)),
                                  style = FALSE)
     expect_false(file.exists(marker))
     expect_identical(result$execution$status, "skipped")

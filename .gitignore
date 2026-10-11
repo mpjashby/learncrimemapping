@@ -20,6 +20,7 @@ Rplots.pdf
 /learncrimemapping_*.tgz
 /learncrimemapping_*.zip
 /*.Rcheck/
+/check/
 
 # Generated during package installation by configure
 inst/container/R/

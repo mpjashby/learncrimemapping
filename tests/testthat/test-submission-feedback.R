@@ -26,7 +26,7 @@ test_that("Quarto text and disabled chunks do not attract script output feedback
 
 test_that("package installation preflight prevents side effects even without style checks", {
   marker <- tempfile()
-  file <- feedback_fixture(c(sprintf('file.create("%s")', marker),
+  file <- feedback_fixture(c(sprintf('file.create(%s)', encodeString(marker, quote = '"')),
                               'utils::install.packages("nonexistent")'))
   result <- check_code_backend(file, style = FALSE)
   expect_identical(result$execution$status, "skipped")

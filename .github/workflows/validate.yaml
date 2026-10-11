@@ -1,0 +1,64 @@
+name: Validate workflows and documentation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '13 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Validate GitHub Actions workflows
+        # Pin the linter so validation changes are deliberate.
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+      - name: Check installation shell scripts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends devscripts
+          sh -n configure
+          sh -n configure.win
+          checkbashisms configure configure.win
+  documentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::roxygen2
+          upgrade: 'TRUE'
+          install-quarto: 'false'
+      - name: Check generated documentation
+        shell: Rscript {0}
+        run: |
+          expected <- read.dcf("DESCRIPTION")[1, "Config/roxygen2/version"]
+          if (as.character(packageVersion("roxygen2")) != expected) {
+            remotes::install_version("roxygen2", expected, upgrade = "never")
+          }
+          roxygen2::roxygenise()
+      - name: Require committed documentation to match source
+        run: |
+          git diff --exit-code -- DESCRIPTION NAMESPACE man
+          test -z "$(git ls-files --others --exclude-standard -- man)"

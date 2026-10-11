@@ -1,0 +1,66 @@
+name: Container integration
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      LCM_TEST_DOCKER: 'true'
+      NOT_CRAN: 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            local::.
+            any::testthat
+            any::withr
+          upgrade: 'TRUE'
+          install-quarto: 'false'
+      - name: Prepare image from installed package resources
+        id: context
+        shell: Rscript {0}
+        run: |
+          context <- file.path(Sys.getenv("RUNNER_TEMP"), "checker-context")
+          dir.create(context)
+          resources <- system.file("container", package = "learncrimemapping")
+          learncrimemapping:::prepare_checker_image_context(resources, context)
+          cat("path=", context, "\n", sep = "",
+              file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
+      - uses: docker/setup-buildx-action@v4
+      - name: Build and load checker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ steps.context.outputs.path }}
+          file: ${{ steps.context.outputs.path }}/inst/container/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: learncrimemapping-checker:local
+          cache-from: type=gha,scope=checker-amd64
+          cache-to: type=gha,mode=max,scope=checker-amd64
+      - name: Test isolation, downloads, private installs and cleanup
+        shell: Rscript {0}
+        run: |
+          testthat::test_local(filter = "submission-container", stop_on_failure = TRUE)
