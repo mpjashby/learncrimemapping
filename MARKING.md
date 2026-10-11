@@ -259,7 +259,8 @@ Documents have their enabled R chunks checked; they are not rendered.
 Preinstalled libraries are read-only. Extra packages installed by student code,
 including through `pacman::p_load()`, go into that student's
 `/workspace/.sandbox/library`. The student code's home folder, temporary files and caches are also inside
-its working folder. These files are not shared with other students and are deleted after the
+its working folder. Except for the shared map tile cache described below, these files
+are not shared with other students and are deleted after the
 report is saved. Allow extra execution time for any package
 compilation; missing system dependencies or network failures require assessor
 review. For an occasional exercise requiring GIF encoding, prepare an image
@@ -309,3 +310,19 @@ instructors familiar with those dependencies.
 
 If you change the image name using `image`, use that same name as
 `container_image` when calling `check_submissions()`.
+
+### Shared map tile cache
+
+Docker batches share a writable tile cache at `output_dir/rosm.cache`, mounted
+at `/workspace/rosm.cache` in every submission container. Tiles survive workspace
+cleanup and are reused on resumed runs. Scripts using the default `rosm` cache
+(or explicitly using `rosm.cache` under the exercise root) use this cache; scripts
+choosing another cache path do not. A template's `rosm.cache` is hidden by this mount.
+
+Use `tile_cache = "~/marking/exercise-01/tiles"` to choose another directory,
+or `tile_cache = NULL` to retain private caches. Keep a separate cache for each
+exercise. The local backend ignores this setting. The cache contains student-writable
+files and should be used only for tiles, not trusted code or assessment inputs.
+Only remove it when no batch is using it.
+
+No checker image rebuild is needed for this change.

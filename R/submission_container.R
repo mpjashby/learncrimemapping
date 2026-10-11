@@ -56,11 +56,32 @@ submission_container_config <- function(image, memory, cpus) {
        cpus = cpus, user = user, platform = paste0("linux/", fields[3]))
 }
 
+# Keep cache configuration separate from container execution for future workers.
+prepare_submission_tile_cache <- function(path) {
+  if (is.null(path)) return(NULL)
+  if (!is.character(path) || length(path) != 1L || is.na(path) ||
+      !nzchar(path) || grepl("[,\r\n]", path)) {
+    stop("tile_cache must be a directory path without commas or newlines.")
+  }
+  dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  if (!dir.exists(path) || file.access(path, 2) != 0) {
+    stop("tile_cache must be a writable directory.")
+  }
+  path <- normalizePath(path, winslash = "/", mustWork = TRUE)
+  if (grepl("[,\r\n]", path)) stop("tile_cache paths must not contain commas or newlines.")
+  path
+}
+
 submission_container_args <- function(workspace, name, config) {
   # Docker's --mount syntax uses commas as separators.
   if (grepl("[,\r\n]", workspace)) {
     stop("Container workspace paths must not contain commas or newlines.")
   }
+  cache_mount <- if (!is.null(config$tile_cache)) {
+    if (grepl("[,\r\n]", config$tile_cache)) stop("tile_cache paths must not contain commas or newlines.")
+    c("--mount", paste0("type=bind,source=", config$tile_cache,
+                        ",target=/workspace/rosm.cache"))
+  } else character()
   c("run", "--detach", "--name", name, "--pull", "never",
     "--platform", config$platform,
     "--read-only", "--user", config$user, "--cap-drop", "ALL",
@@ -72,6 +93,7 @@ submission_container_args <- function(workspace, name, config) {
     "--log-opt", "max-file=1", "--log-opt", "compress=false",
     "--network", "bridge", "--ipc", "none",
     "--mount", paste0("type=bind,source=", workspace, ",target=/workspace"),
+    cache_mount,
     "--workdir", "/workspace",
     "--env", "HOME=/workspace/.sandbox/home",
     "--env", "TMPDIR=/workspace/.sandbox/tmp",

@@ -20,11 +20,16 @@
 #'   course dependencies. See `MARKING.md` for build instructions.
 #' @param container_memory Docker memory limit for each student.
 #' @param container_cpus Maximum CPUs available to each student.
+#' @param tile_cache Directory shared by Docker submissions for the default
+#'   `rosm.cache` tile cache. Defaults to `rosm.cache` inside `output_dir` and
+#'   persists across resumed batches. Use a separate directory for each exercise.
+#'   Set to `NULL` to disable sharing. Ignored by the local backend.
 #' @return Invisibly, a list with `manifest`, named `results`, `index`, and
 #'   `issue_summary` (the common-issue HTML report path).
 #' @details Docker checking uses fresh, unprivileged containers with a read-only
-#'   system filesystem. Only the current student's workspace is mounted from the
-#'   host. Web access remains enabled. Packages may be installed into the
+#'   system filesystem. The current student's workspace and, when enabled, the
+#'   shared tile cache are mounted from the host. Web access remains enabled.
+#'   Packages may be installed into the
 #'   student's private library within that workspace, never the host library.
 #'   R and system libraries inside the image remain readable. No automatic
 #'   fallback to local execution occurs. Local execution is not a sandbox.
@@ -49,7 +54,8 @@ check_submissions <- function(zip, output_dir, profile = list(),
                               style = TRUE, timeout = 600,
                               backend = c("docker", "local"),
                               container_image = "learncrimemapping-checker:local",
-                              container_memory = "4g", container_cpus = 2) {
+                              container_memory = "4g", container_cpus = 2,
+                              tile_cache = file.path(output_dir, "rosm.cache")) {
   backend <- match.arg(backend)
   container <- NULL
   check_code_arguments(zip, reprex, style, workspace_template, timeout)
@@ -93,6 +99,7 @@ check_submissions <- function(zip, output_dir, profile = list(),
   targets <- file.path(output_dir, "feedback", paste0(identities, ".html"))
   if (backend == "docker" && any(!file.exists(targets))) {
     container <- submission_container_config(container_image, container_memory, container_cpus)
+    container$tile_cache <- prepare_submission_tile_cache(tile_cache)
   }
   if (backend == "local" && reprex) {
     warning("Local checking is unrestricted: student code can change host files and packages.",

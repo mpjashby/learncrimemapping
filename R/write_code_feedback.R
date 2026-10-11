@@ -51,7 +51,9 @@ write_code_feedback <- function(result, file, participant = NULL) {
         if (issue$id == "runtime.warning") "<span class='condition-warning'>WARNING: </span>" else
           if (issue$id == "runtime.message") "Message: " else ""
       blocks <- c(blocks, paste0(
-        "<article class='issue'><p><strong>", label, escape(issue$message), "</strong></p>",
+        "<article class='issue'><p><strong>", label,
+        if (issue$id == "runtime.message") paste0("&ldquo;", escape(issue$message), "&rdquo;") else
+          escape(issue$message), "</strong></p>",
         "<p class='locations'>", escape(paste(locations, collapse = "; ")), "</p>",
         "<p>", escape(issue$action), "</p>",
         if (length(examples)) paste0("<details><summary>Code or captured output</summary><pre>",

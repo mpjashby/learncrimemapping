@@ -22,3 +22,18 @@ test_that("batch counts unique issue types while reports keep each occurrence", 
   expect_match(index, paste0("<td>", length(unique(ids)), "</td>"), fixed = TRUE)
   expect_equal(batch$manifest$issues[batch$manifest$participant == "Participant_2"], 0L)
 })
+
+test_that("package startup and response messages do not increase script issue counts", {
+  zip <- feedback_zip(list("Participant_1_assignsubmission_file/exercise.R" = c(
+    'packageStartupMessage("Routine package startup")',
+    'message("Delimiter: ,")',
+    'cat("<httr2_response>\\nStatus: 200 OK")')))
+  output <- tempfile("expected-messages-")
+  withr::defer(unlink(output, recursive = TRUE))
+  expect_warning(batch <- check_submissions(zip, output, backend = "local", style = FALSE),
+    "Local checking is unrestricted")
+  expect_equal(batch$manifest$issues, 0L)
+  expect_true(any(vapply(batch$results$Participant_1$execution$events,
+    function(x) "packageStartupMessage" %in% x$condition_classes, logical(1))))
+  expect_match(paste(readLines(batch$index), collapse = "\n"), "<td>0</td>", fixed = TRUE)
+})

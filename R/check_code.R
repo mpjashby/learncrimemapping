@@ -188,10 +188,11 @@ run_check_code <- function(code, file, execution_dir, timeout, report_dir) {
         # Checkpoint each event immediately; a timed-out child cannot return
         # in-memory results. Handler closures share the counters through <<-.
         record <- function(kind, text = NULL, plot = NULL, details = NULL,
-                           point_geometry = FALSE) {
+                           point_geometry = FALSE, condition_classes = NULL) {
           event_count <<- event_count + 1L
           event <- list(kind = kind, text = text, line = current_line, plot = plot,
-                        details = details, point_geometry = point_geometry)
+                        details = details, point_geometry = point_geometry,
+                        condition_classes = condition_classes)
           target <- file.path(report_dir, sprintf("event-%08d.rds", event_count))
           # Publish only complete files. If the child is killed during a write,
           # the parent ignores the unfinished .partial checkpoint.
@@ -216,7 +217,8 @@ run_check_code <- function(code, file, execution_dir, timeout, report_dir) {
           text = function(x) record("output", x),
           warning = function(x) record("warning", conditionMessage(x),
             point_geometry = observer$point_warning()),
-          message = function(x) record("message", conditionMessage(x)),
+          message = function(x) record("message", conditionMessage(x),
+            condition_classes = class(x)),
           error = function(x) record("error", conditionMessage(x)),
           graphics = function(x) {
             path <- file.path(report_dir, sprintf("plot-%08d.png", event_count + 1L))

@@ -66,7 +66,8 @@ No student code is rewritten, and student submissions cannot share these
 execution directories by accident.
 
 Extracted submissions and execution workspaces, including private package
-libraries, downloads and caches, are temporary. They are removed after each
+libraries, downloads and private caches, are temporary. The shared map tile cache
+is retained (see below). They are removed after each
 self-contained HTML report is saved. Reports embed source code, plots and
 captured logs; `results.rds` retains structured results, but paths to temporary
 files are historical references. Keep the original Moodle ZIP for reviewing
@@ -216,3 +217,19 @@ blocked diagnostic calls prevent all execution checks. Runtime errors identify
 the start line of the failing expression/block and explain that code after that
 block was not checked for runtime issues. Static style checks can still produce
 findings, including in code that could not be executed.
+
+### Shared map tile cache
+
+Docker batches share a writable tile cache at `output_dir/rosm.cache`, mounted
+at `/workspace/rosm.cache` in every submission container. Tiles survive workspace
+cleanup and are reused on resumed runs. Scripts using the default `rosm` cache
+(or explicitly using `rosm.cache` under the exercise root) use this cache; scripts
+choosing another cache path do not. A template's `rosm.cache` is hidden by this mount.
+
+Use `tile_cache = "~/marking/exercise-01/tiles"` to choose another directory,
+or `tile_cache = NULL` to retain private caches. Keep a separate cache for each
+exercise. The local backend ignores this setting. The cache contains student-writable
+files and should be used only for tiles, not trusted code or assessment inputs.
+Only remove it when no batch is using it.
+
+No checker image rebuild is needed for this change.

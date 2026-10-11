@@ -46,3 +46,50 @@ test_that("informational messages from the captured log are included", {
   expect_match(html, "Linking to GEOS", fixed = TRUE)
   expect_match(html, "library(sf)", fixed = TRUE)
 })
+
+test_that("expected script messages remain in logs but are excluded from marking issues", {
+  messages <- c("Rows: 10 Columns: 2", "Delimiter: ,", "Column specification",
+    "Use `spec()` to retrieve the full column specification for this data.",
+    "Specify the column types or set `show_col_types = FALSE` to quiet this message.",
+    "The following objects are masked from package:base:\n    union",
+    "A package-specific startup notice", "<httr2_response>\nStatus: 200 OK")
+  for (extension in c(".R", ".qmd")) {
+    result <- check_code_backend(feedback_fixture(if (extension == ".R") "x <- 1" else
+      c("```{r}", "x <- 1", "```"), extension), reprex = FALSE, style = FALSE)
+    result$execution$events <- lapply(seq_along(messages), function(i)
+      list(kind = if (i == length(messages)) "output" else "message",
+        text = messages[i], line = 1L,
+        condition_classes = if (i == 7L) c("packageStartupMessage", "message") else "message"))
+    result$issues <- interpret_code_feedback(result)
+    report <- tempfile(fileext = ".html")
+    summary <- tempfile(fileext = ".html")
+    withr::defer(unlink(c(report, summary)))
+    write_code_feedback(result, report)
+    manifest <- data.frame(participant = "Participant_1", report = "feedback/report.html")
+    write_submission_issue_summary(manifest, list(Participant_1 = result), summary,
+      result$profile)
+    html <- paste(readLines(report), collapse = "\n")
+    issues_html <- paste(readLines(summary), collapse = "\n")
+    log_start <- regexpr("<details><summary>Complete captured text log</summary>", html, fixed = TRUE)[1]
+    expect_gt(log_start, 0L)
+    issue_html <- substr(html, 1L, log_start - 1L)
+    log_html <- substring(html, log_start)
+    for (message in messages) expect_match(log_html, feedback_html_escape(message), fixed = TRUE)
+    if (extension == ".R") {
+      expect_length(result$issues, 0L)
+      for (message in messages) {
+        expect_false(grepl(feedback_html_escape(message), issue_html, fixed = TRUE))
+        expect_false(grepl(feedback_html_escape(message), issues_html, fixed = TRUE))
+      }
+    } else {
+      expect_equal(sum(vapply(result$issues, function(x) x$id == "runtime.message",
+        logical(1))), length(messages) - 1L)
+      for (message in messages) expect_match(html, feedback_html_escape(message), fixed = TRUE)
+      for (message in head(messages, -1L)) expect_match(issues_html,
+        feedback_html_escape(message), fixed = TRUE)
+    }
+    result$execution$events <- list(list(kind = "message", text = "Unexpected diagnostic",
+      line = 1L), list(kind = "warning", text = "Review this warning", line = 1L))
+    expect_length(interpret_code_feedback(result), 2L)
+  }
+})

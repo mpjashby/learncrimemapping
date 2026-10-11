@@ -189,3 +189,39 @@ test_that("the runtime platform follows the image rather than the host CPU", {
   architecture <- "arm64"
   expect_identical(inspect("fixture", "4g", 2)$platform, "linux/arm64")
 })
+
+
+test_that("shared tile caches persist and are mounted at the default rosm path", {
+  cache <- tempfile("exercise-tiles-")
+  on.exit(unlink(cache, recursive = TRUE), add = TRUE)
+  path <- prepare_submission_tile_cache(cache)
+  writeLines("cached tile", file.path(path, "tile.png"))
+  expect_identical(prepare_submission_tile_cache(cache), path)
+  expect_identical(readLines(file.path(path, "tile.png")), "cached tile")
+  config <- list(image = "sha256:example", memory = "4g", cpus = 2,
+                 user = "1000:1000", platform = "linux/amd64", tile_cache = path)
+  args <- submission_container_args("/tmp/workspace", "student", config)
+  expect_equal(sum(args == "--mount"), 2L)
+  expect_true(paste0("type=bind,source=", path,
+                    ",target=/workspace/rosm.cache") %in% args)
+  config$tile_cache <- prepare_submission_tile_cache(NULL)
+  expect_equal(sum(submission_container_args("/tmp/workspace", "student", config) == "--mount"), 1L)
+  expect_error(prepare_submission_tile_cache("/tmp/cache,bad"), "commas")
+  expect_error(prepare_submission_tile_cache("/tmp/cache\ninvalid"), "newlines")
+  expect_error(prepare_submission_tile_cache(NA_character_), "tile_cache")
+  expect_error(prepare_submission_tile_cache(file.path(path, "tile.png")), "writable directory")
+})
+
+test_that("Docker submissions reuse tiles from the previous container", {
+  skip_if(Sys.getenv("LCM_TEST_DOCKER") != "true", "Set LCM_TEST_DOCKER=true after building the image")
+  output <- tempfile("shared-cache-batch-")
+  on.exit(unlink(output, recursive = TRUE), add = TRUE)
+  zip <- feedback_zip(list(
+    "Participant_1_assignsubmission_file/code.R" = 'writeLines("tile fixture", "rosm.cache/tile.png")',
+    "Participant_2_assignsubmission_file/code.R" = 'stopifnot(identical(readLines("rosm.cache/tile.png"), "tile fixture"))'
+  ))
+  batch <- check_submissions(zip, output, style = FALSE,
+    container_image = Sys.getenv("LCM_TEST_IMAGE", "learncrimemapping-checker:local"))
+  expect_identical(batch$manifest$execution, c("success", "success"))
+  expect_identical(readLines(file.path(output, "rosm.cache", "tile.png")), "tile fixture")
+})

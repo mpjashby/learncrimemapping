@@ -21,7 +21,7 @@ test_that("conditions are presented directly and R-only warnings remain in the l
   write_code_feedback(q, html)
   text <- paste(readLines(html), collapse = "\n")
   expect_match(text, "<span class='condition-warning'>WARNING: </span>st_point_on_surface", fixed = TRUE)
-  expect_match(text, "Message: The following objects", fixed = TRUE)
+  expect_match(text, "Message: &ldquo;The following objects are masked from package:base: intersect&rdquo;", fixed = TRUE)
   expect_false(grepl("<ol>", text, fixed = TRUE))
   expect_false(grepl("This expression produced a message", text, fixed = TRUE))
   expect_false(grepl("initial-fail{", text, fixed = TRUE))

@@ -13,9 +13,9 @@ write_submission_issue_summary <- function(manifest, results, file, profile) {
     }
     issues <- result$issues
     source <- ""
-    for (event in result$execution$events) {
+    for (event in code_feedback_events(result)) {
       if (event$kind == "source") source <- event$text
-      # Include informational messages retained only in the individual log.
+      # Include reportable messages retained only in the individual log.
       if (event$kind == "message" && nzchar(trimws(event$text)) &&
           !any(vapply(issues, function(x) x$id == "runtime.message" &&
             identical(trimws(x$message), trimws(event$text)), logical(1)))) {

@@ -292,15 +292,7 @@ interpret_code_feedback <- function(result) {
                      event$line, evidence = event$text))
     }
     if (event$kind == "message" && nzchar(trimws(event$text))) {
-      # Setup/import information is retained in the event log, but not treated
-      # as unnecessary output. Unknown messages are explicitly review prompts.
-      informational <- grepl(
-        paste0("^(\u2139[[:space:]]*|i[[:space:]]+)?(Attaching (package|core tidyverse)|\u2500\u2500|Rows: [0-9]|Columns: [0-9]|",
-               "Column specification|Delimiter:|Use `spec\\(|Specify the column types|",
-               "Linking to GEOS|Loading required (package|namespace):|Registered S3 method|",
-               "The following objects? (is|are) masked (from|by)|here\\(\\) starts at)"),
-        trimws(event$text))
-      if ((!informational || extension != "r") && result$profile$text_output == "review") {
+      if (result$profile$text_output == "review") {
         add(code_issue("runtime.message", "output",
                        trimws(event$text),
                        if (extension == "r")
@@ -386,10 +378,27 @@ report_code_issues <- function(issues) {
   invisible(NULL)
 }
 
-# Filter presentation only: the complete condition log remains available.
+# Keep raw execution events for diagnostics; apply these exclusions consistently
+# wherever marking output is derived from them.
+code_expected_script_message <- function(event) {
+  if (event$kind %in% c("message", "output") &&
+      startsWith(trimws(event$text), "<httr2_response>")) return(TRUE)
+  if (event$kind != "message") return(FALSE)
+  if ("packageStartupMessage" %in% event$condition_classes) return(TRUE)
+  grepl(
+    paste0("^(\u2139[[:space:]]*|i[[:space:]]+)?(Attaching (package|core tidyverse)|\u2500\u2500|Rows: [0-9]|Columns: [0-9]|",
+           "Column specification|Delimiter:|Use `spec\\(|Specify the column types|",
+           "Linking to GEOS|Loading required (package|namespace):|Registered S3 method|",
+           "The following objects? (is|are) masked (from|by)|here\\(\\) starts at)"),
+    trimws(event$text))
+}
+
 code_feedback_events <- function(result) {
-  Filter(function(event) !(tolower(tools::file_ext(result$file)) == "r" &&
-    event$kind == "warning" && grepl(
+  if (!identical(tolower(tools::file_ext(result$file)), "r")) {
+    return(result$execution$events)
+  }
+  Filter(function(event) !code_expected_script_message(event) &&
+    !(event$kind == "warning" && grepl(
       "st_point_on_surface may not give correct results for longitude/latitude data",
       event$text, fixed = TRUE)), result$execution$events)
 }

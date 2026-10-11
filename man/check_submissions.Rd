@@ -15,7 +15,8 @@ check_submissions(
   backend = c("docker", "local"),
   container_image = "learncrimemapping-checker:local",
   container_memory = "4g",
-  container_cpus = 2
+  container_cpus = 2,
+  tile_cache = file.path(output_dir, "rosm.cache")
 )
 }
 \arguments{
@@ -42,6 +43,11 @@ course dependencies. See \code{MARKING.md} for build instructions.}
 \item{container_memory}{Docker memory limit for each student.}
 
 \item{container_cpus}{Maximum CPUs available to each student.}
+
+\item{tile_cache}{Directory shared by Docker submissions for the default
+\code{rosm.cache} tile cache. Defaults to \code{rosm.cache} inside \code{output_dir}
+and persists across resumed batches. Use a separate directory for each exercise.
+Set to \code{NULL} to disable sharing. Ignored by the local backend.}
 }
 \value{
 Invisibly, a list with \code{manifest}, named \code{results}, \code{index}, and
@@ -55,8 +61,9 @@ RDS results are also retained.
 }
 \details{
 Docker checking uses fresh, unprivileged containers with a read-only
-system filesystem. Only the current student's workspace is mounted from the
-host. Web access remains enabled. Packages may be installed into the
+system filesystem. The current student's workspace and, when enabled, the
+shared tile cache are mounted from the host. Web access remains enabled.
+Packages may be installed into the
 student's private library within that workspace, never the host library.
 R and system libraries inside the image remain readable. No automatic
 fallback to local execution occurs. Local execution is not a sandbox.
