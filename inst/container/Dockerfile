@@ -1,7 +1,7 @@
 # Build from the repository root or the installed-package helper
 # build_checker_image(), which supplies a temporary context of trusted files.
 # R only: this multi-platform base contains neither RStudio Server nor TeX.
-FROM rocker/r-ver:4.5.3@sha256:c3f39b365d1077fe24f8e9ab2742e352b6d3950897f51af1624a5bb5550c21c0
+FROM rocker/r-ver:4.6.1@sha256:4e6e6696ff54a86625c7f80046478e67014a2184e942b85eeff43db7b992d93e
 USER root
 COPY inst/container/install-packages.R /opt/learncrimemapping/install-packages.R
 # Keep compilation tools because student pacman::p_load() calls can install
