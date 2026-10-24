@@ -66,7 +66,7 @@ write_code_feedback <- function(result, file, participant = NULL) {
   if (!length(result$issues)) {
     blocks <- "<p class='clean'>No issues were detected by the checks that ran. Manual review is still needed.</p>"
   }
-  blocks <- c(blocks, feedback_submitted_code(result))
+  blocks <- c(blocks, feedback_submitted_code(result), feedback_saved_files(result))
   # Make previews portable: no dependence on temporary plot files after writing.
   plots <- Filter(function(x) x$kind == "plot" && file.exists(x$plot),
                   result$execution$events)

@@ -3,7 +3,7 @@
 # Normal package tests already have these functions in the package namespace.
 if (!exists("check_code_backend", mode = "function", inherits = TRUE)) {
   for (module in c("code_feedback.R", "check_submissions.R", "submission_container.R",
-                   "write_code_feedback.R", "submission_issue_summary.R", "spatial_feedback.R",
+                   "write_code_feedback.R", "submission_outputs.R", "submission_issue_summary.R", "spatial_feedback.R",
                    "package_moodle_feedback.R")) {
     source(testthat::test_path("..", "..", "R", module), local = .GlobalEnv)
   }

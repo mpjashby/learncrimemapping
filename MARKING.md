@@ -138,7 +138,51 @@ Existing reports and instructor files are preserved; the index, manifest and sav
 results are updated. To recheck a participant, move their report elsewhere first.
 Use the same archive and settings when resuming.
 
-Reports embed code, plots, styles and captured logs, so they remain usable after
+### Saved maps in feedback
+
+The batch checker also embeds new or changed PNG, JPEG and PDF files saved
+in `output/` or `outputs/`. This includes maps assigned to an object and then
+saved without printing. Supplied template images are excluded unless changed.
+Captured plots and saved files appear in separate sections because they can differ.
+
+For another location or to check for an expected file, add relative glob patterns:
+
+```r
+batch <- learncrimemapping:::check_submissions(
+  zip = submission_zip,
+  output_dir = run_dir,
+  profile = profile,
+  saved_files = c("outputs/final_map.pdf", "figures/*.png")
+)
+```
+
+Explicit patterns report missing outputs, including when execution stopped early.
+Use `saved_files = character()` to disable collection. Preview failures are
+reported for review and do not add automatic penalties. Files saved before an
+execution error or timeout are included when the workspace remains available.
+
+PDF previews require Poppler's `pdftoppm` command on the **marking computer**,
+including when using Docker. Install Poppler with `brew install poppler` on
+macOS or `sudo apt-get install poppler-utils` on Debian/Ubuntu; on Windows,
+install Poppler and put its `bin` folder on PATH. No converter is needed for
+PNG or JPEG. If Poppler is missing, the report explains why the PDF preview is
+unavailable and retains the other checking results.
+
+Collection is limited to 10 files, 10 MB per file and 30 MB of input files in
+total, with a 40 MB limit on embedded previews. Raster images are limited to 20,000 pixels per dimension and 40 million
+pixels in total. PDF previews show at most five pages at a maximum dimension of
+1,600 pixels, with a 30-second conversion timeout per PDF. Only the final saved
+version of each file is shown. Previews and relative filenames are retained in
+`results.rds`, as well as embedded in the portable HTML; temporary original files
+are still deleted. Keep the Moodle submission ZIP for reproducibility.
+
+After updating the package, restart the marking R session. This feature runs on
+the marking computer and does not require rebuilding an otherwise current Docker
+image. Existing HTML reports are skipped: use a fresh results directory to
+regenerate an earlier batch, since its temporary saved maps have been deleted.
+Review the generated reports before packaging and uploading as usual.
+
+Reports embed code, plots, saved-file previews, styles and captured logs, so they remain usable after
 the extracted submissions and execution workspaces have been deleted and can be
 uploaded to Moodle. Paths to those temporary files in `results.rds` are historical
 references; keep the original Moodle ZIP for reviewing the source files. Package

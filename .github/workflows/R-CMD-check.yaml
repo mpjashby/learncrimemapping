@@ -45,11 +45,11 @@ jobs:
           r-version: ${{ matrix.config.r }}
           http-user-agent: release
           use-public-rspm: true
-      - name: Install shell portability checker
+      - name: Install shell checker and PDF preview converter
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends devscripts
+          sudo apt-get install -y --no-install-recommends devscripts poppler-utils
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           extra-packages: |

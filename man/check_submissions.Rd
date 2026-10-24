@@ -16,7 +16,8 @@ check_submissions(
   container_image = "learncrimemapping-checker:local",
   container_memory = "4g",
   container_cpus = 2,
-  tile_cache = file.path(output_dir, "rosm.cache")
+  tile_cache = file.path(output_dir, "rosm.cache"),
+  saved_files = NULL
 )
 }
 \arguments{
@@ -48,6 +49,11 @@ course dependencies. See \code{MARKING.md} for build instructions.}
 \code{rosm.cache} tile cache. Defaults to \code{rosm.cache} inside \code{output_dir} and
 persists across resumed batches. Use a separate directory for each exercise.
 Set to \code{NULL} to disable sharing. Ignored by the local backend.}
+
+\item{saved_files}{Relative glob patterns for saved outputs to embed. \code{NULL}
+collects PNG, JPEG and PDF files in \verb{output/} and \verb{outputs/}. Use \code{character()}
+to disable collection. Explicit patterns also report missing outputs.
+PDF previews require Poppler (\code{pdftoppm}) on the marking computer.}
 }
 \value{
 Invisibly, a list with \code{manifest}, named \code{results}, \code{index}, and

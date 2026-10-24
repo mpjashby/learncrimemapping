@@ -24,6 +24,10 @@
 #'   `rosm.cache` tile cache. Defaults to `rosm.cache` inside `output_dir` and
 #'   persists across resumed batches. Use a separate directory for each exercise.
 #'   Set to `NULL` to disable sharing. Ignored by the local backend.
+#' @param saved_files Relative glob patterns for saved outputs to embed. `NULL`
+#'   collects PNG, JPEG and PDF files in `output/` and `outputs/`. Use `character()`
+#'   to disable collection. Explicit patterns also report missing outputs.
+#'   PDF previews require Poppler (`pdftoppm`) on the marking computer.
 #' @return Invisibly, a list with `manifest`, named `results`, `index`, and
 #'   `issue_summary` (the common-issue HTML report path).
 #' @details Docker checking uses fresh, unprivileged containers with a read-only
@@ -55,7 +59,13 @@ check_submissions <- function(zip, output_dir, profile = list(),
                               backend = c("docker", "local"),
                               container_image = "learncrimemapping-checker:local",
                               container_memory = "4g", container_cpus = 2,
-                              tile_cache = file.path(output_dir, "rosm.cache")) {
+                              tile_cache = file.path(output_dir, "rosm.cache"),
+                              saved_files = NULL) {
+  expected_saved_files <- !is.null(saved_files)
+  if (is.null(saved_files)) saved_files <- as.vector(outer(
+    c("output", "outputs"), c("png", "jpg", "jpeg", "pdf"),
+    function(directory, extension) paste0(directory, "/*.", extension)))
+  saved_files <- validate_saved_files(saved_files)
   backend <- match.arg(backend)
   container <- NULL
   check_code_arguments(zip, reprex, style, workspace_template, timeout)
@@ -183,12 +193,22 @@ check_submissions <- function(zip, output_dir, profile = list(),
     } else {
       result <- tryCatch({
         prepare_submission_workspace(workspace, workspace_template)
+        before <- submission_output_snapshot(workspace, saved_files)
         if (backend == "docker") {
-          check_submission_container(file, reprex, style, workspace, timeout,
+          checked <- check_submission_container(file, reprex, style, workspace, timeout,
                                      profile, report_dir, container)
         } else {
-          check_code_backend(file, reprex, style, workspace, timeout, profile, report_dir)
+          checked <- check_code_backend(file, reprex, style, workspace, timeout, profile, report_dir)
         }
+        tryCatch({
+          assert_submission_workspace_files(workspace)
+          collect_submission_outputs(checked, workspace, saved_files, before,
+                                     report_missing = expected_saved_files)
+        }, error = function(cnd) {
+          checked$saved_file_notes <- paste("Saved output collection could not be completed:",
+                                            conditionMessage(cnd))
+          checked
+        })
       }, error = function(cnd) {
         invalid_submission_result(file, profile, conditionMessage(cnd), checker = TRUE)
       })
