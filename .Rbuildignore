@@ -16,3 +16,5 @@
 ^TODO\.md$
 ^check$
 ^MARKING\.md\.fetch$
+^air\.toml$
+^AGENTS\.md$

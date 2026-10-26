@@ -10,7 +10,12 @@ require assessor review.
 feedback interpretation. Console, text and HTML reports are presentations of
 the structured `issues` list. With style checking enabled, staff batches also
 add advisory checks for chains of single-use intermediate objects and missing
-blank lines before section comments beside multiline statements. These checks
+blank lines before section comments beside multiline statements, and blank lines
+between steps connected by `|>`, `%>%` or ggplot2 `+`. The chain-spacing rule
+reports one style issue per affected chain, preserving document line numbers.
+It ignores spacing inside individual function arguments and recognises plot
+stacks rooted in `ggplot()`/`ggplot2::ggplot()` or a straightforward earlier
+assignment to a plot object. Unknown plot objects are left for assessor review. These checks
 require manual judgement and are not run by student-facing `check_code()`.
 
 ## Matching student checks
@@ -112,18 +117,27 @@ conditions explain that point coordinates are unchanged.
 
 Executed `sf::st_transform()` calls are observed in the child session and the
 target's EPSG area-of-use bounds are obtained from sf's local PROJ database.
-The input geometry is located in longitude/latitude using its source CRS, and
-all geometry vertices are compared with the bounds, including extents crossing
-the antimeridian. Data entirely outside the area and data extending beyond it
-receive feedback with the CRS name/code and the compared extents. EPSG bounds
-are approximate rectangles: an inside result does not prove that a CRS is
-appropriate or that all geometry between its vertices lies inside the area.
-The check assumes the source CRS was assigned correctly. Missing metadata,
-unlocatable geometry, non-EPSG CRS definitions and custom transformation
-pipelines receive an incomplete-check explanation rather than a pass.
-Empty geometry placeholders are logged as not checked without generating an
-issue. Repeated checks during plotting are consolidated per target, outcome and
-executing expression, with all observations retained in the log.
+The input geometry is located in longitude/latitude using its source CRS.
+The temporary geographic copy is always rebuilt with s2 crossing-edge splitting
+and its ring orientations normalised before validation, so minor topology errors
+need not prevent location estimation. Original student geometries
+are unchanged, and repaired multipart geometries retain one contribution per
+original feature. Rebuilding or centroid failures remain incomplete checks.
+Each nonempty feature contributes one spherical centroid, with equal weight,
+to a spherical geometric median (minimum total great-circle distance). Multiple
+numerical starting points reduce sensitivity to local minima; balanced antipodal
+data are reported as inconclusive. The median is compared with the target's
+approximate EPSG bounds, including extents crossing the antimeridian. This checks
+a representative location, not containment of the entire dataset or general
+projection suitability. The source CRS must be correctly assigned.
+Features entirely at Null Island (within one micrometre of longitude/latitude
+zero) generate a separate warning with their count, even for non-EPSG targets.
+They remain included in the robust median. A polygon merely touching or covering
+Null Island is not counted. No student data are modified.
+Missing metadata, unlocatable geometry, non-EPSG definitions and custom pipelines
+receive an incomplete-check explanation. Empty placeholders generate no issue.
+Repeated checks during plotting are consolidated per target, outcome and
+executing expression, with observations retained in the log.
 Transformations through other packages and code not reached during execution
 are outside this check. `reprex = FALSE` does not perform CRS area checks.
 sf, GDAL and PROJ versions are recorded alongside checker versions.
@@ -233,3 +247,28 @@ files and should be used only for tiles, not trusted code or assessment inputs.
 Only remove it when no batch is using it.
 
 No checker image rebuild is needed for this change.
+
+## Maintaining code style and comments
+
+Package R code follows the [tidyverse style guide](https://style.tidyverse.org/).
+Use two-space indentation, snake_case names, `<-` assignment, double-quoted
+strings and an 80-character target for code and comments. Long literal report
+text, URLs and test inputs can exceed that target when wrapping would change
+or obscure their contents.
+
+The project uses [Air](https://posit-dev.github.io/air/) to keep formatting
+consistent. From the repository root, run `air format .` to format code or
+`air format --check .` to verify it. The project configuration in `air.toml`
+excludes deliberately malformed manual submissions, generated container helper
+copies and package-check outputs. Keep student-code strings in automated tests
+unchanged: their spacing, comments and line numbers are part of the fixtures.
+The installation scripts regenerate `inst/container/R` from the maintained
+helpers in `R`; edit the original helpers rather than their generated copies.
+
+Place explanatory comments beside the operations they describe. Explain the
+purpose of a step, the shape of shared results, non-obvious parsing and geometry
+logic, and reasons for validation, limits and cleanup. Keep these comments current
+when changing behaviour. Use sentence case and a space after `#`; avoid comments
+that merely repeat a straightforward assignment or function call. Test names
+state the expected behaviour; add comments where fixture construction or mocking
+needs further explanation.

@@ -17,7 +17,8 @@ check_submissions(
   container_memory = "4g",
   container_cpus = 2,
   tile_cache = file.path(output_dir, "rosm.cache"),
-  saved_files = NULL
+  saved_files = NULL,
+  workspace_dirs = c("data/raw", "data/processed", "output")
 )
 }
 \arguments{
@@ -54,6 +55,11 @@ Set to \code{NULL} to disable sharing. Ignored by the local backend.}
 collects PNG, JPEG and PDF files in \verb{output/} and \verb{outputs/}. Use \code{character()}
 to disable collection. Explicit patterns also report missing outputs.
 PDF previews require Poppler (\code{pdftoppm}) on the marking computer.}
+
+\item{workspace_dirs}{Relative directories created in each student's workspace
+after copying exercise resources and before execution, for either backend.
+Defaults to \code{data/raw}, \code{data/processed} and \code{output}. Supply a character
+vector to replace these defaults, or \code{character()} to create none.}
 }
 \value{
 Invisibly, a list with \code{manifest}, named \code{results}, \code{index}, and

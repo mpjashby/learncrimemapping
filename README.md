@@ -36,8 +36,14 @@ assessment.
 
 ```r
 # Choose a file interactively, or supply its path:
+check_code()
 check_code("assessment.qmd")
 ```
+
+In Positron, `check_code()` opens an operating-system file dialog. Cancelling
+returns quietly without running checks. Linux requires `yad` or `zenity` for
+the dialog. If no dialog appears, supply the file path explicitly as above.
+Noninteractive calls must supply a file path.
 
 `check_code()` runs code in a separate R session, stops on the first error, and stops execution after ten minutes by default. 
 

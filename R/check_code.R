@@ -1,3 +1,11 @@
+# Provide existing namespace bindings so testthat can mock base R functions
+# during installed-package tests, when the namespace is locked. Ordinary
+# function calls skip these NULL values and resolve to the base R functions.
+interactive <- NULL
+file.choose <- NULL
+Sys.info <- NULL
+Sys.which <- NULL
+
 #' Check code file before submission
 #'
 #' Check an R script or the enabled R chunks of an R Markdown or Quarto
@@ -5,7 +13,8 @@
 #' suggestions using a consistent course style configuration.
 #'
 #' @param file A path to an `.R`, `.Rmd`, or `.qmd` file, or `NULL` to choose
-#'   a file interactively.
+#'   a file interactively. Positron uses an operating-system dialog; cancelling
+#'   that dialog returns invisibly without checking a file.
 #' @param reprex Should the code be executed to check for errors and warnings?
 #'   This argument is retained for compatibility; execution uses callr and
 #'   evaluate rather than reprex.
@@ -20,10 +29,15 @@
 #' @return Invisibly, a list containing the original file, execution directory,
 #'   execution status and captured events, lint results, check failures,
 #'   report path, checker dependency versions, and a shared `issues` list.
+#'   Returns invisible `NULL` when the Positron file dialog is cancelled.
 #'   Execution status is one of
 #'   `skipped`, `success`, `error`, `timeout`, or `failed`. Reports and plots
 #'   are temporary and last for the current R session.
-#' @details Execution stops at the first error. Static checks can still run
+#' @details In Positron, interactive file selection uses `svDialogs` with the
+#'   operating-system dialog. Linux requires `yad` or `zenity`. If no dialog
+#'   appears, supply an explicit file path. Noninteractive calls require a path.
+#'
+#'   Execution stops at the first error. Static checks can still run
 #'   after execution fails or times out. An isolated R session avoids relying
 #'   on objects in the student's workspace, but code can still read and write
 #'   files and access the network. Personal startup profiles are not loaded;
@@ -45,17 +59,24 @@
 #'
 #'   Executed `sf::st_transform()` calls are checked against the target CRS's
 #'   EPSG area-of-use bounds using the local database exposed by sf/PROJ. This
-#'   compares geographic geometry vertices with approximate bounds, assumes
+#'   compares the equal-feature spherical geometric median with approximate bounds, assumes
 #'   that the source CRS is correctly assigned, and does not prove that a CRS
-#'   is otherwise suitable. Missing metadata is reported as an incomplete check.
+#'   is otherwise suitable. Features located entirely at Null Island generate a
+#'   separate warning. Missing metadata is reported as an incomplete check.
 #'   Custom pipelines and transformations not performed through sf are outside
 #'   this check. CRS checking requires execution (`reprex = TRUE`).
 #'
 #'   Local lintr configuration is ignored. Findings are suggestions, not a
 #'   guarantee of correctness or an assessment grade.
 #' @export
-check_code <- function(file = NULL, reprex = TRUE, style = TRUE,
-                       execution_dir = NULL, timeout = 600, profile = list()) {
+check_code <- function(
+  file = NULL,
+  reprex = TRUE,
+  style = TRUE,
+  execution_dir = NULL,
+  timeout = 600,
+  profile = list()
+) {
   # Validate flags before opening a file dialog or running checks. NA is a
   # logical scalar, but cannot be used as the condition of an if statement.
   check_code_arguments(file, reprex, style, execution_dir, timeout)
@@ -63,9 +84,11 @@ check_code <- function(file = NULL, reprex = TRUE, style = TRUE,
     if (!interactive()) {
       cli::cli_abort("Supply {.arg file} when running noninteractively.")
     }
-    file <- tryCatch(file.choose(), error = function(cnd) {
-      cli::cli_abort("No file was selected.", parent = cnd)
-    })
+    file <- choose_check_code_file()
+    # Cancellation must stop before path validation or any checking starts.
+    if (length(file) == 0L || identical(file, "")) {
+      return(invisible(NULL))
+    }
   }
   if (!file.exists(file) || dir.exists(file) || file.access(file, 4) != 0) {
     cli::cli_abort("{.file {file}} must be a readable regular file.")
@@ -87,9 +110,18 @@ check_code <- function(file = NULL, reprex = TRUE, style = TRUE,
   }
   if (reprex) {
     cli::cli_text("Execution directory: {.file {execution_dir}}")
-    cli::cli_text("Execution will stop on the first error or after {timeout} seconds.")
+    cli::cli_text(
+      "Execution will stop on the first error or after {timeout} seconds."
+    )
   }
-  result <- check_code_backend(file, reprex, style, execution_dir, timeout, profile)
+  result <- check_code_backend(
+    file,
+    reprex,
+    style,
+    execution_dir,
+    timeout,
+    profile
+  )
   if (!reprex && !style) {
     cli::cli_warn("No checking was done because both checks were disabled.")
     return(invisible(result))
@@ -109,12 +141,54 @@ check_code <- function(file = NULL, reprex = TRUE, style = TRUE,
   }
   # Existing runtime and lint displays remain concise. Additional shared
   # feedback is shown here; every issue is retained in the result and report.
-  extra <- Filter(function(x) !startsWith(x$id, "lint.") &&
-                    !x$id %in% c("runtime.error", "runtime.warning"), result$issues)
+  extra <- Filter(
+    function(x) {
+      !startsWith(x$id, "lint.") &&
+        !x$id %in% c("runtime.error", "runtime.warning")
+    },
+    result$issues
+  )
   report_code_issues(extra)
   cli::cli_text("Full report: {.file {result$report}}")
   cli::cli_text("{.emph Run {.fn check_code} again after making changes.}")
   invisible(result)
+}
+
+# Keep editor-specific selection separate from validation and execution.
+choose_check_code_file <- function() {
+  # Preserve the existing chooser in RStudio and other R environments.
+  if (!nzchar(Sys.getenv("POSITRON"))) {
+    return(tryCatch(file.choose(), error = function(cnd) {
+      cli::cli_abort("No file was selected.", parent = cnd)
+    }))
+  }
+  # Linux needs an external dialog program; avoid silently asking for a path.
+  if (
+    identical(Sys.info()[["sysname"]], "Linux") &&
+      !any(nzchar(Sys.which(c("yad", "zenity"))))
+  ) {
+    cli::cli_abort(c(
+      "A graphical file dialog is unavailable.",
+      "i" = "Install yad or zenity, or supply a path to {.fn check_code}."
+    ))
+  }
+  # Bypass Positron's RStudio compatibility API to request the native dialog.
+  tryCatch(open_check_code_dialog(), error = function(cnd) {
+    cli::cli_abort(c(
+      "Could not open the file-selection dialog.",
+      "i" = "Try again or supply a path to {.fn check_code}."
+    ), parent = cnd)
+  })
+}
+
+# Isolate the GUI call so automated tests never open a modal window.
+open_check_code_dialog <- function() {
+  svDialogs::dlg_open(
+    default = file.path(getwd(), "*"),
+    title = "Select the script to check",
+    multiple = FALSE,
+    rstudio = FALSE
+  )$res
 }
 
 # Validate inputs separately from file discovery and checking stages.
@@ -132,18 +206,29 @@ check_code_arguments <- function(file, reprex, style, execution_dir, timeout) {
     }
   }
   if (!is.null(execution_dir) && !valid_path(execution_dir)) {
-    cli::cli_abort("{.arg execution_dir} must be NULL or a single directory path.")
+    cli::cli_abort(
+      "{.arg execution_dir} must be NULL or a single directory path."
+    )
   }
-  if (!is.numeric(timeout) || length(timeout) != 1L || is.na(timeout) ||
-      !is.finite(timeout) || timeout <= 0) {
-    cli::cli_abort("{.arg timeout} must be a positive finite number of seconds.")
+  if (
+    !is.numeric(timeout) ||
+      length(timeout) != 1L ||
+      is.na(timeout) ||
+      !is.finite(timeout) ||
+      timeout <= 0
+  ) {
+    cli::cli_abort(
+      "{.arg timeout} must be a positive finite number of seconds."
+    )
   }
 }
 
 check_execution_directory <- function(file, execution_dir) {
   if (!is.null(execution_dir)) {
     if (!dir.exists(execution_dir)) {
-      cli::cli_abort("Execution directory {.file {execution_dir}} does not exist.")
+      cli::cli_abort(
+        "Execution directory {.file {execution_dir}} does not exist."
+      )
     }
     return(normalizePath(execution_dir, winslash = "/", mustWork = TRUE))
   }
@@ -151,8 +236,11 @@ check_execution_directory <- function(file, execution_dir) {
   # unrelated project open. Standalone files need no project marker.
   criterion <- rprojroot::is_rstudio_project | rprojroot::is_quarto_project
   tryCatch(
-    normalizePath(rprojroot::find_root(criterion, path = dirname(file)),
-                  winslash = "/", mustWork = TRUE),
+    normalizePath(
+      rprojroot::find_root(criterion, path = dirname(file)),
+      winslash = "/",
+      mustWork = TRUE
+    ),
     error = function(cnd) dirname(file)
   )
 }
@@ -187,13 +275,28 @@ run_check_code <- function(code, file, execution_dir, timeout, report_dir) {
         current_line <- 1L
         # Checkpoint each event immediately; a timed-out child cannot return
         # in-memory results. Handler closures share the counters through <<-.
-        record <- function(kind, text = NULL, plot = NULL, details = NULL,
-                           point_geometry = FALSE, condition_classes = NULL) {
+        record <- function(
+          kind,
+          text = NULL,
+          plot = NULL,
+          details = NULL,
+          point_geometry = FALSE,
+          condition_classes = NULL
+        ) {
           event_count <<- event_count + 1L
-          event <- list(kind = kind, text = text, line = current_line, plot = plot,
-                        details = details, point_geometry = point_geometry,
-                        condition_classes = condition_classes)
-          target <- file.path(report_dir, sprintf("event-%08d.rds", event_count))
+          event <- list(
+            kind = kind,
+            text = text,
+            line = current_line,
+            plot = plot,
+            details = details,
+            point_geometry = point_geometry,
+            condition_classes = condition_classes
+          )
+          target <- file.path(
+            report_dir,
+            sprintf("event-%08d.rds", event_count)
+          )
           # Publish only complete files. If the child is killed during a write,
           # the parent ignores the unfinished .partial checkpoint.
           saveRDS(event, paste0(target, ".partial"))
@@ -211,17 +314,27 @@ run_check_code <- function(code, file, execution_dir, timeout, report_dir) {
             # each expression, including preceding blanks. This identifies its
             # start, not the precise failing statement inside a function.
             current_line <<- next_line
-            next_line <<- next_line + lengths(regmatches(x$src, gregexpr("\n", x$src)))
+            next_line <<- next_line +
+              lengths(regmatches(x$src, gregexpr("\n", x$src)))
             if (nzchar(trimws(x$src))) record("source", x$src)
           },
           text = function(x) record("output", x),
-          warning = function(x) record("warning", conditionMessage(x),
-            point_geometry = observer$point_warning()),
-          message = function(x) record("message", conditionMessage(x),
-            condition_classes = class(x)),
+          warning = function(x) {
+            record(
+              "warning",
+              conditionMessage(x),
+              point_geometry = observer$point_warning()
+            )
+          },
+          message = function(x) {
+            record("message", conditionMessage(x), condition_classes = class(x))
+          },
           error = function(x) record("error", conditionMessage(x)),
           graphics = function(x) {
-            path <- file.path(report_dir, sprintf("plot-%08d.png", event_count + 1L))
+            path <- file.path(
+              report_dir,
+              sprintf("plot-%08d.png", event_count + 1L)
+            )
             # Save plots in the child rather than returning device-dependent
             # recorded plots. Close the PNG device even if replaying fails.
             grDevices::png(path, width = 1000, height = 800)
@@ -231,31 +344,51 @@ run_check_code <- function(code, file, execution_dir, timeout, report_dir) {
         )
         # Suppression by a user's environment variable would defeat capture.
         Sys.unsetenv("R_EVALUATE_BYPASS_MESSAGES")
-        tryCatch({
-          output <- evaluate::evaluate(
-            code, envir = new.env(parent = globalenv()), filename = file,
-            # 1 stops at the first error while retaining earlier output; 0 would
-            # continue and 2 would discard the evaluation result.
-            stop_on_error = 1L, keep_warning = TRUE, keep_message = TRUE,
-            output_handler = handler
-          )
-          if (any(vapply(output, inherits, logical(1), "error"))) "error" else "success"
-        }, error = function(cnd) {
-          # Parse failures can precede handler callbacks. Record these as
-          # submission errors using the same event format.
-          record("checker_error", conditionMessage(cnd))
-          "failed"
-        })
+        tryCatch(
+          {
+            output <- evaluate::evaluate(
+              code,
+              envir = new.env(parent = globalenv()),
+              filename = file,
+              # 1 stops at the first error while retaining earlier output; 0
+              # would
+              # continue and 2 would discard the evaluation result.
+              stop_on_error = 1L,
+              keep_warning = TRUE,
+              keep_message = TRUE,
+              output_handler = handler
+            )
+            if (any(vapply(output, inherits, logical(1), "error"))) {
+              "error"
+            } else {
+              "success"
+            }
+          },
+          error = function(cnd) {
+            # Parse failures can precede handler callbacks. Record these as
+            # submission errors using the same event format.
+            record("checker_error", conditionMessage(cnd))
+            "failed"
+          }
+        )
       },
-      args = list(code = code, file = file, report_dir = report_dir,
-                  spatial_observer = observer_function),
-      wd = execution_dir, timeout = timeout,
+      args = list(
+        code = code,
+        file = file,
+        report_dir = report_dir,
+        spatial_observer = observer_function
+      ),
+      wd = execution_dir,
+      timeout = timeout,
       # Avoid startup profiles changing checker behaviour. callr passes the
       # parent's library paths by default, preserving installed course packages.
-      user_profile = FALSE, system_profile = FALSE
+      user_profile = FALSE,
+      system_profile = FALSE
     ),
     error = function(cnd) {
-      if (inherits(cnd, c("callr_timeout_error", "system_command_timeout_error"))) {
+      if (
+        inherits(cnd, c("callr_timeout_error", "system_command_timeout_error"))
+      ) {
         return("timeout")
       }
       # Propagate other process failures to the outer checker-failure handler.
@@ -263,26 +396,48 @@ run_check_code <- function(code, file, execution_dir, timeout, report_dir) {
     }
   )
   events <- read_check_events(report_dir)
-  list(status = status, events = events,
-       message = if (status == "failed")
-         paste(vapply(Filter(function(e) e$kind == "checker_error", events),
-                      function(e) e$text, character(1)), collapse = "\n") else NULL)
+  list(
+    status = status,
+    events = events,
+    message = if (status == "failed") {
+      paste(
+        vapply(
+          Filter(function(e) e$kind == "checker_error", events),
+          function(e) e$text,
+          character(1)
+        ),
+        collapse = "\n"
+      )
+    } else {
+      NULL
+    }
+  )
 }
 
 # Zero-padded filenames sort chronologically. The pattern excludes partial
 # checkpoints left by a terminated child process.
 read_check_events <- function(report_dir) {
-  files <- sort(list.files(report_dir, pattern = "^event-[0-9]+\\.rds$",
-                           full.names = TRUE))
+  files <- sort(list.files(
+    report_dir,
+    pattern = "^event-[0-9]+\\.rds$",
+    full.names = TRUE
+  ))
   lapply(files, readRDS)
 }
 
 # Preserve columns for clean or skipped checks so callers do not need a
 # special case for the empty result.
 empty_check_lints <- function() {
-  data.frame(filename = character(), line_number = integer(),
-             column_number = integer(), type = character(), message = character(),
-             line = character(), linter = character(), category = character())
+  data.frame(
+    filename = character(),
+    line_number = integer(),
+    column_number = integer(),
+    type = character(),
+    message = character(),
+    line = character(),
+    linter = character(),
+    category = character()
+  )
 }
 
 # Maintain a deliberate course rule list rather than adopting all upstream
@@ -294,24 +449,28 @@ lint_check_code <- function(file) {
       lintr::absolute_path_linter(), # no absolute paths
       lintr::assignment_linter(operator = "<-"), # `<-` is used for assignment
       lintr::brace_linter(), # {} are correctly styled
-      lintr::class_equals_linter(), # classes are checked for with `inherits()` not `==`
+      # Classes are checked for with `inherits()` not `==`
+      lintr::class_equals_linter(),
       lintr::commas_linter(), # commas are followed by spaces
       # cyclocomp is an optional lintr dependency, checked explicitly above.
       lintr::cyclocomp_linter(), # no expressions are very complicated
       lintr::duplicate_argument_linter(), # no duplicate arguments
       lintr::equals_na_linter(), # NAs are checked with `is.na()` not `==`
-      lintr::for_loop_index_linter(), # input var is not overwritten as loop-index var
+      # Input var is not overwritten as loop-index var
+      lintr::for_loop_index_linter(),
       lintr::function_left_parentheses_linter(), # no space before function ()
       lintr::implicit_assignment_linter(), # no assignment inside function args
       lintr::indentation_linter(), # consistent indentation
       lintr::infix_spaces_linter(), # spaces around operators
-      lintr::inner_combine_linter(), # vectorised function not re-used for every element of vector
+      # Vectorised function not re-used for every element of vector
+      lintr::inner_combine_linter(),
       # lintr::keyword_quote_linter(), # no unnecessary quoting of obj index
       lintr::length_test_linter(), # no mistakes with usage of `length()`
       # Package loading is checked by the shared course.package_loading rule.
       # Exempt string contents so paths and URLs need not be split. This also
       # exempts other long strings; the remainder of a line is still checked.
-      lintr::line_length_linter(length = 80, ignore_string_bodies = TRUE), # lines no more than 80 chrs
+      # Lines no more than 80 chrs
+      lintr::line_length_linter(length = 80, ignore_string_bodies = TRUE),
       lintr::missing_argument_linter(), # no empty function args
       lintr::missing_package_linter(), # no uninstalled packages
       # Symbol checks load referenced namespaces and depend on installed
@@ -319,8 +478,10 @@ lint_check_code <- function(file) {
       lintr::namespace_linter(), # no uninstalled packages
       lintr::nested_ifelse_linter(), # no nested `ifelse()` calls
       lintr::numeric_leading_zero_linter(), # require leading zeros before `.`
-      lintr::object_length_linter(length = 40), # no excessively long object names
-      lintr::object_name_linter(styles = "snake_case"), # object names follow style guide
+      # No excessively long object names
+      lintr::object_length_linter(length = 40),
+      # Object names follow style guide
+      lintr::object_name_linter(styles = "snake_case"),
       lintr::paren_body_linter(), # space after function ()
       lintr::paste_linter(), # `paste()` not misused
       lintr::pipe_consistency_linter(pipe = "|>"), # use base pipe
@@ -332,7 +493,8 @@ lint_check_code <- function(file) {
       lintr::seq_linter(), # no problems with `1:length()` etc.
       lintr::sort_linter(), # no common mistakes with vector sorting
       lintr::spaces_inside_linter(), # no spaces inside () or []
-      lintr::spaces_left_parentheses_linter(), # space before ( except function calls
+      # Space before ( except function calls
+      lintr::spaces_left_parentheses_linter(),
       lintr::sprintf_linter(), # no common mistakes with `sprintf()`
       lintr::system_file_linter(), # no use of `file.path()` in `system.file()`
       lintr::T_and_F_symbol_linter(), # `T`/`F` aren't used for `TRUE`/`FALSE`
@@ -347,7 +509,8 @@ lint_check_code <- function(file) {
         )
       ),
       lintr::undesirable_operator_linter(), # no use of undesirable operators
-      lintr::unnecessary_concatenation_linter(), # no use of `c()` with empty args
+      # No use of `c()` with empty args
+      lintr::unnecessary_concatenation_linter(),
       lintr::unnecessary_lambda_linter(), # no unnecessary anonymous functions
       lintr::unnecessary_nesting_linter(), # avoid unnecessary nesting
       lintr::unreachable_code_linter(), # no unreachable code
@@ -360,15 +523,19 @@ lint_check_code <- function(file) {
     parse_settings = FALSE
   )
   results <- as.data.frame(lints)
-  if (!nrow(results)) return(empty_check_lints())
+  if (!nrow(results)) {
+    return(empty_check_lints())
+  }
   results <- filter_literal_length_lints(results, file)
   results <- code_name_lint_messages(results, file)
   # Missing packages describe the environment, not a style mistake. Keep
   # lintr's original severity and message alongside our presentation category.
   results$category <- ifelse(
-    results$linter %in% c("missing_package_linter", "namespace_linter") &
+    results$linter %in%
+      c("missing_package_linter", "namespace_linter") &
       grepl("not installed", results$message, fixed = TRUE),
-    "environment", ifelse(results$type == "style", "style", "correctness")
+    "environment",
+    ifelse(results$type == "style", "style", "correctness")
   )
   results[order(results$line_number, results$column_number), , drop = FALSE]
 }
@@ -376,14 +543,18 @@ lint_check_code <- function(file) {
 report_execution <- function(execution, execution_dir) {
   status <- execution$status
   if (status == "timeout") {
-    cli::cli_alert_warning("Execution reached the time limit; the check is incomplete.")
+    cli::cli_alert_warning(
+      "Execution reached the time limit; the check is incomplete."
+    )
     cli::cli_text(
       "Common causes include large spatial datasets, slow spatial operations, ",
       "downloads or geocoding requests, long or infinite loops, and code waiting ",
       "for input. Run sections separately to find where execution slows down."
     )
   } else if (status == "failed") {
-    cli::cli_alert_warning("The execution checker could not complete its checks.")
+    cli::cli_alert_warning(
+      "The execution checker could not complete its checks."
+    )
     cli::cli_text("{execution$message}")
   } else if (status == "error") {
     cli::cli_alert_danger("Execution stopped at the first error.")
@@ -407,7 +578,9 @@ report_execution <- function(execution, execution_dir) {
     )
   }
   if (length(warnings)) {
-    cli::cli_text("{length(warnings)} warning(s) were captured; showing up to three:")
+    cli::cli_text(
+      "{length(warnings)} warning(s) were captured; showing up to three:"
+    )
     cli::cli_ul()
     for (event in utils::head(warnings, 3)) {
       # Interpolate messages as data so braces in student output are not
@@ -424,20 +597,33 @@ report_check_lints <- function(lints, file) {
     cli::cli_alert_success("No static issues were found.")
     return(invisible(NULL))
   }
-  labels <- c(correctness = "Likely errors or correctness problems",
-              environment = "Environment problems", style = "Style suggestions")
+  labels <- c(
+    correctness = "Likely errors or correctness problems",
+    environment = "Environment problems",
+    style = "Style suggestions"
+  )
   for (category in names(labels)) {
     findings <- lints[lints$category == category, , drop = FALSE]
-    if (!nrow(findings)) next
+    if (!nrow(findings)) {
+      next
+    }
     cli::cli_h2("{labels[[category]]}")
     # Collapse related layout notes while the raw lints retain exact diagnoses.
     findings$display_message <- findings$message
-    findings$display_message[findings$linter == "indentation_linter"] <- "Use consistent indentation."
-    findings$display_message[findings$linter == "line_length_linter"] <- "Keep code lines within 80 characters."
+    findings$display_message[
+      findings$linter == "indentation_linter"
+    ] <- "Use consistent indentation."
+    findings$display_message[
+      findings$linter == "line_length_linter"
+    ] <- "Keep code lines within 80 characters."
     groups <- unique(findings[c("linter", "display_message")])
     for (i in seq_len(nrow(groups))) {
-      selected <- findings[findings$linter == groups$linter[i] &
-                             findings$display_message == groups$display_message[i], , drop = FALSE]
+      selected <- findings[
+        findings$linter == groups$linter[i] &
+          findings$display_message == groups$display_message[i],
+        ,
+        drop = FALSE
+      ]
       lines <- sort(unique(selected$line_number))
       message <- groups$display_message[i]
       cli::cli_text("Lines {lines}: {message}")
@@ -445,11 +631,18 @@ report_check_lints <- function(lints, file) {
       # while retaining distinct character positions.
       locations <- unique(selected[c("line_number", "column_number")])
       for (j in seq_len(min(nrow(locations), 3L))) {
-        location <- paste0(basename(file), " line ", locations$line_number[j],
-                           ", character ", locations$column_number[j])
+        location <- paste0(
+          basename(file),
+          " line ",
+          locations$line_number[j],
+          ", character ",
+          locations$column_number[j]
+        )
         cli::cli_text("  {location}")
       }
-      if (nrow(locations) > 3L) cli::cli_text("  Further locations are in the full report.")
+      if (nrow(locations) > 3L) {
+        cli::cli_text("  Further locations are in the full report.")
+      }
     }
   }
   invisible(NULL)
@@ -459,50 +652,112 @@ report_check_lints <- function(lints, file) {
 # lint, including details omitted from the concise console summary.
 write_check_report <- function(result) {
   lines <- c(
-    "check_code report", paste("File:", basename(result$file)),
+    "check_code report",
+    paste("File:", basename(result$file)),
     paste("Execution directory:", result$execution_dir),
     paste("Execution status:", result$execution$status),
-    "Runtime locations identify the start of the executing expression.", ""
+    "Runtime locations identify the start of the executing expression.",
+    ""
   )
   for (event in result$execution$events) {
-    lines <- c(lines, paste0("[", event$kind, ", line ", event$line, "]"),
-               if (event$kind == "plot") event$plot else event$text)
+    lines <- c(
+      lines,
+      paste0("[", event$kind, ", line ", event$line, "]"),
+      if (event$kind == "plot") event$plot else event$text
+    )
   }
   if (nrow(result$lints)) {
-    lines <- c(lines, "", "Static findings:", vapply(seq_len(nrow(result$lints)), function(i) {
-      x <- result$lints[i, ]
-      paste0(basename(x$filename), " line ", x$line_number,
-             ", character ", x$column_number,
-             " [", x$category, "/", x$linter, "] ", x$message)
-    }, character(1)))
+    lines <- c(
+      lines,
+      "",
+      "Static findings:",
+      vapply(
+        seq_len(nrow(result$lints)),
+        function(i) {
+          x <- result$lints[i, ]
+          paste0(
+            basename(x$filename),
+            " line ",
+            x$line_number,
+            ", character ",
+            x$column_number,
+            " [",
+            x$category,
+            "/",
+            x$linter,
+            "] ",
+            x$message
+          )
+        },
+        character(1)
+      )
+    )
   }
   if (length(result$failures)) {
     lines <- c(lines, "", "Incomplete checks:", unlist(result$failures))
   }
   if (length(result$issues)) {
-    lines <- c(lines, "", "Shared feedback issues:",
-               unlist(lapply(result$issues, function(issue) {
-                 c(paste0("[", issue$id, ", ", issue$category, ", line ",
-                          issue$line, "] ", issue$message), issue$action)
-               }), use.names = FALSE))
+    lines <- c(
+      lines,
+      "",
+      "Shared feedback issues:",
+      unlist(
+        lapply(result$issues, function(issue) {
+          c(
+            paste0(
+              "[",
+              issue$id,
+              ", ",
+              issue$category,
+              ", line ",
+              issue$line,
+              "] ",
+              issue$message
+            ),
+            issue$action
+          )
+        }),
+        use.names = FALSE
+      )
+    )
   }
-  lines <- c(lines, "", "Checker versions:",
-             paste(names(result$versions), result$versions))
+  lines <- c(
+    lines,
+    "",
+    "Checker versions:",
+    paste(names(result$versions), result$versions)
+  )
   writeLines(lines, result$report, useBytes = TRUE)
 }
 
 # Record versions to diagnose machine-specific behaviour. Missing packages
 # are recorded without preventing checks that do not require them.
 check_dependency_versions <- function() {
-  packages <- c("callr", "evaluate", "lintr", "cyclocomp", "cli", "rprojroot", "sf")
-  versions <- vapply(packages, function(package) {
-    if (requireNamespace(package, quietly = TRUE)) {
-      as.character(utils::packageVersion(package))
-    } else {
-      "not installed"
-    }
-  }, character(1))
-  spatial <- if (requireNamespace("sf", quietly = TRUE)) sf::sf_extSoftVersion() else character()
+  packages <- c(
+    "callr",
+    "evaluate",
+    "lintr",
+    "cyclocomp",
+    "cli",
+    "rprojroot",
+    "sf"
+  )
+  versions <- vapply(
+    packages,
+    function(package) {
+      if (requireNamespace(package, quietly = TRUE)) {
+        as.character(utils::packageVersion(package))
+      } else {
+        "not installed"
+      }
+    },
+    character(1)
+  )
+  spatial <- if (requireNamespace("sf", quietly = TRUE)) {
+    sf::sf_extSoftVersion()
+  } else {
+    character()
+  }
   c(R = as.character(getRversion()), versions, spatial)
 }
 
@@ -512,17 +767,38 @@ filter_literal_length_lints <- function(lints, file) {
   lines <- read_check_code(file, tolower(tools::file_ext(file)))
   source <- srcfilecopy(file, lines)
   # R retains tokens parsed before an error in the explicit srcfile object.
-  # A later syntax mistake must not turn an earlier valid URL into a style issue.
-  tryCatch(parse(text = lines, srcfile = source, keep.source = TRUE),
-           error = function(e) NULL)
+  # A later syntax mistake must not turn an earlier valid URL into a style
+  # issue.
+  tryCatch(
+    parse(text = lines, srcfile = source, keep.source = TRUE),
+    error = function(e) NULL
+  )
   tokens <- utils::getParseData(source)
-  if (is.null(tokens)) return(lints)
-  literals <- tokens[tokens$token == "STR_CONST" & tokens$line1 == tokens$line2, , drop = FALSE]
-  discard <- vapply(seq_len(nrow(lints)), function(i) {
-    if (lints$linter[i] != "line_length_linter") return(FALSE)
-    on_line <- literals[literals$line1 == lints$line_number[i], , drop = FALSE]
-    nrow(on_line) > 0L && nchar(lints$line[i], type = "chars") -
-      sum(pmax(0L, on_line$col2 - on_line$col1 - 1L)) <= 80L
-  }, logical(1))
+  if (is.null(tokens)) {
+    return(lints)
+  }
+  literals <- tokens[
+    tokens$token == "STR_CONST" & tokens$line1 == tokens$line2,
+    ,
+    drop = FALSE
+  ]
+  discard <- vapply(
+    seq_len(nrow(lints)),
+    function(i) {
+      if (lints$linter[i] != "line_length_linter") {
+        return(FALSE)
+      }
+      on_line <- literals[
+        literals$line1 == lints$line_number[i],
+        ,
+        drop = FALSE
+      ]
+      nrow(on_line) > 0L &&
+        nchar(lints$line[i], type = "chars") -
+          sum(pmax(0L, on_line$col2 - on_line$col1 - 1L)) <=
+          80L
+    },
+    logical(1)
+  )
   lints[!discard, , drop = FALSE]
 }

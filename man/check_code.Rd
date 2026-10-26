@@ -15,7 +15,8 @@ check_code(
 }
 \arguments{
 \item{file}{A path to an \code{.R}, \code{.Rmd}, or \code{.qmd} file, or \code{NULL} to choose
-a file interactively.}
+a file interactively. Positron uses an operating-system dialog; cancelling
+that dialog returns invisibly without checking a file.}
 
 \item{reprex}{Should the code be executed to check for errors and warnings?
 This argument is retained for compatibility; execution uses callr and
@@ -37,6 +38,7 @@ See that function for supported settings.}
 Invisibly, a list containing the original file, execution directory,
 execution status and captured events, lint results, check failures,
 report path, checker dependency versions, and a shared \code{issues} list.
+Returns invisible \code{NULL} when the Positron file dialog is cancelled.
 Execution status is one of
 \code{skipped}, \code{success}, \code{error}, \code{timeout}, or \code{failed}. Reports and plots
 are temporary and last for the current R session.
@@ -47,6 +49,10 @@ document in a separate R session, then report potential problems and
 suggestions using a consistent course style configuration.
 }
 \details{
+In Positron, interactive file selection uses \code{svDialogs} with the
+operating-system dialog. Linux requires \code{yad} or \code{zenity}. If no dialog
+appears, supply an explicit file path. Noninteractive calls require a path.
+
 Execution stops at the first error. Static checks can still run
 after execution fails or times out. An isolated R session avoids relying
 on objects in the student's workspace, but code can still read and write
@@ -69,9 +75,10 @@ any of the submitted code.
 
 Executed \code{sf::st_transform()} calls are checked against the target CRS's
 EPSG area-of-use bounds using the local database exposed by sf/PROJ. This
-compares geographic geometry vertices with approximate bounds, assumes
+compares the equal-feature spherical geometric median with approximate bounds, assumes
 that the source CRS is correctly assigned, and does not prove that a CRS
-is otherwise suitable. Missing metadata is reported as an incomplete check.
+is otherwise suitable. Features located entirely at Null Island generate a
+separate warning. Missing metadata is reported as an incomplete check.
 Custom pipelines and transformations not performed through sf are outside
 this check. CRS checking requires execution (\code{reprex = TRUE}).
 

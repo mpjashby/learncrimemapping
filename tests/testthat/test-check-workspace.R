@@ -1,8 +1,11 @@
 # The CI workflow also sources these functions without installing the large
 # course metapackage. In that mode rebind their source environment directly;
 # installed-package tests use testthat to handle locked namespace bindings.
-local_workspace_bindings <- function(..., .package = "learncrimemapping",
-                                     .env = parent.frame()) {
+local_workspace_bindings <- function(
+  ...,
+  .package = "learncrimemapping",
+  .env = parent.frame()
+) {
   target <- environment(check_workspace)
   if (.package != "learncrimemapping" || isNamespace(target)) {
     testthat::local_mocked_bindings(..., .package = .package, .env = .env)
@@ -22,29 +25,47 @@ workspace_fixture <- function(name = "crime_mapping") {
     dir.create(file.path(folder, path), recursive = TRUE)
   }
   file.create(file.path(folder, "air.toml"))
-  writeLines(c('{ // workspace settings', '"[r]": {',
-               '"editor.formatOnSave": true, /* save */',
-               '"editor.defaultFormatter": "Posit.air-vscode",', '},', '}'),
-             file.path(folder, ".vscode", "settings.json"))
+  writeLines(
+    c(
+      "{ // workspace settings",
+      '"[r]": {',
+      '"editor.formatOnSave": true, /* save */',
+      '"editor.defaultFormatter": "Posit.air-vscode",',
+      "},",
+      "}"
+    ),
+    file.path(folder, ".vscode", "settings.json")
+  )
   folder
 }
-workspace_test_desc <- function() list(
-  Depends = "R (>= 4.1.0)",
-  Imports = "cli, here, usethis (>= 3.2.0), examplegithub (>= 1.0.0)",
-  Remotes = "example/examplegithub"
-)
+workspace_test_desc <- function() {
+  list(
+    Depends = "R (>= 4.1.0)",
+    Imports = "cli, here, usethis (>= 3.2.0), examplegithub (>= 1.0.0)",
+    Remotes = "example/examplegithub"
+  )
+}
 local_workspace_mocks <- function(folder, ..., .env = parent.frame()) {
   local_workspace_bindings(
     workspace_description = workspace_test_desc,
     workspace_os = function() "Darwin",
-    workspace_editor = function() list(detected = TRUE, workspace = folder, version = NULL),
+    workspace_editor = function() {
+      list(detected = TRUE, workspace = folder, version = NULL)
+    },
     workspace_package_version = function(package) "99.0.0",
     workspace_here = function() folder,
     workspace_key_present = function() TRUE,
-    workspace_saved_key = function(start_folder) list(state = "present", path = file.path(folder, ".Renviron"), source = "user"),
+    workspace_saved_key = function(start_folder) {
+      list(
+        state = "present",
+        path = file.path(folder, ".Renviron"),
+        source = "user"
+      )
+    },
     workspace_latest_r = function() as.character(getRversion()),
     workspace_rtools = function() stop("Tools should not be probed on a Mac"),
-    .package = "learncrimemapping", .env = .env
+    .package = "learncrimemapping",
+    .env = .env
   )
   if (length(list(...))) {
     local_workspace_bindings(..., .package = "learncrimemapping", .env = .env)
@@ -52,8 +73,15 @@ local_workspace_mocks <- function(folder, ..., .env = parent.frame()) {
 }
 workspace_report <- function(...) {
   visible <- NULL
-  output <- capture.output(visible <- withVisible(check_workspace(...)), type = "message")
-  list(result = visible$value, visible = visible$visible, output = paste(output, collapse = "\n"))
+  output <- capture.output(
+    visible <- withVisible(check_workspace(...)),
+    type = "message"
+  )
+  list(
+    result = visible$value,
+    visible = visible$visible,
+    output = paste(output, collapse = "\n")
+  )
 }
 check_status <- function(report, id) report$result$checks[[id]]$status
 
@@ -67,7 +95,16 @@ test_that("a correct Positron workspace needs no Rproj and returns invisible sta
   expect_identical(report$result$workspace_source, "positron")
   expect_identical(report$result$counts[["problem"]], 0L)
   expect_identical(check_status(report, "workspace.here"), "passed")
-  for (id in c("workspace.active", "workspace.working_directory", "air.file", "air.settings", "air.format_on_save", "air.formatter", "carto.session", "carto.saved")) {
+  for (id in c(
+    "workspace.active",
+    "workspace.working_directory",
+    "air.file",
+    "air.settings",
+    "air.format_on_save",
+    "air.formatter",
+    "carto.session",
+    "carto.saved"
+  )) {
     expect_identical(check_status(report, id), "passed")
   }
   expect_false("air.behaviour" %in% names(report$result$checks))
@@ -76,7 +113,10 @@ test_that("a correct Positron workspace needs no Rproj and returns invisible sta
   expect_match(report$output, "PASS:.*here::here")
   expect_match(report$output, "checks requiring manual verification")
   expect_false(grepl("everything is", report$output, ignore.case = TRUE))
-  expect_identical(names(report$result$checks), unname(vapply(report$result$checks, `[[`, character(1), "id")))
+  expect_identical(
+    names(report$result$checks),
+    unname(vapply(report$result$checks, `[[`, character(1), "id"))
+  )
 })
 
 test_that("missing directories get safely quoted code; blocking files are preserved", {
@@ -88,7 +128,10 @@ test_that("missing directories get safely quoted code; blocking files are preser
   report <- workspace_report(folder)
   expect_identical(check_status(report, "directory.output"), "problem")
   action <- report$result$checks[["directory.output"]]$actions[[2]]
-  expect_identical(eval(parse(text = action)[[1]][[2]]), file.path(workspace_path(folder), "output"))
+  expect_identical(
+    eval(parse(text = action)[[1]][[2]]),
+    file.path(workspace_path(folder), "output")
+  )
   expect_match(report$output, "Do not overwrite or delete")
   expect_identical(readLines(file.path(folder, "data/raw")), "keep me")
   expect_identical(check_status(report, "directory.data/raw"), "problem")
@@ -103,38 +146,58 @@ test_that("parent failures prevent dependent checks", {
   report <- workspace_report(folder)
   expect_identical(check_status(report, "directory.data"), "problem")
   expect_identical(check_status(report, "directory.data/raw"), "not_checked")
-  expect_identical(check_status(report, "directory.data/processed"), "not_checked")
+  expect_identical(
+    check_status(report, "directory.data/processed"),
+    "not_checked"
+  )
   expect_identical(check_status(report, "directory.output"), "passed")
 })
 
 test_that("explicit, active, working and remembered here folders are independent", {
   folder <- workspace_fixture()
   wrong <- workspace_fixture("other_course")
-  local_workspace_mocks(folder,
-    workspace_editor = function() list(detected = TRUE, workspace = wrong, version = NULL),
-    workspace_here = function() wrong)
+  local_workspace_mocks(
+    folder,
+    workspace_editor = function() {
+      list(detected = TRUE, workspace = wrong, version = NULL)
+    },
+    workspace_here = function() wrong
+  )
   withr::local_dir(wrong)
   report <- workspace_report(folder)
   expect_identical(report$result$workspace_source, "supplied")
-  for (id in c("workspace.active", "workspace.working_directory", "workspace.here")) expect_identical(check_status(report, id), "problem")
+  for (id in c(
+    "workspace.active",
+    "workspace.working_directory",
+    "workspace.here"
+  )) {
+    expect_identical(check_status(report, id), "problem")
+  }
   expect_match(report$output, "here\\(\\) remembers")
   expect_match(report$output, "File > Open Folder")
   expect_false(grepl("setwd\\(", report$output))
-  expect_identical(check_status(workspace_report(), "workspace.name"), "problem")
+  expect_identical(
+    check_status(workspace_report(), "workspace.name"),
+    "problem"
+  )
 })
 
 test_that("unconfident working-directory fallback never suggests directory creation", {
   folder <- workspace_fixture("unrelated")
   unlink(file.path(folder, "output"), recursive = TRUE)
   withr::local_dir(folder)
-  local_workspace_mocks(folder,
-    workspace_editor = function() list(detected = FALSE, workspace = NULL, version = NULL))
+  local_workspace_mocks(folder, workspace_editor = function() {
+    list(detected = FALSE, workspace = NULL, version = NULL)
+  })
   report <- workspace_report()
   expect_false(report$result$workspace_confident)
   expect_identical(check_status(report, "workspace.folder"), "manual")
   expect_identical(check_status(report, "workspace.active"), "manual")
   expect_false(grepl("dir.create", report$output, fixed = TRUE))
-  expect_match(gsub("[[:space:]]+", " ", report$output), "does not mean it is not installed")
+  expect_match(
+    gsub("[[:space:]]+", " ", report$output),
+    "does not mean it is not installed"
+  )
 })
 
 test_that("here and vscode markers establish fallback without an Rproj", {
@@ -144,8 +207,9 @@ test_that("here and vscode markers establish fallback without an Rproj", {
       unlink(file.path(folder, ".vscode"), recursive = TRUE)
       file.create(file.path(folder, ".here"))
     }
-    local_workspace_mocks(folder,
-      workspace_editor = function() list(detected = FALSE, workspace = NULL, version = NULL))
+    local_workspace_mocks(folder, workspace_editor = function() {
+      list(detected = FALSE, workspace = NULL, version = NULL)
+    })
     withr::with_dir(folder, {
       report <- workspace_report()
       expect_true(report$result$workspace_confident)
@@ -156,13 +220,28 @@ test_that("here and vscode markers establish fallback without an Rproj", {
 
 test_that("capitalisation is checked by directory entries even on insensitive disks", {
   folder <- workspace_fixture()
-  expect_true(file.rename(file.path(folder, "data"), file.path(folder, "temporary_data")))
-  expect_true(file.rename(file.path(folder, "temporary_data"), file.path(folder, "Data")))
-  expect_true(file.rename(file.path(folder, "R"), file.path(folder, "temporary_scripts")))
-  expect_true(file.rename(file.path(folder, "temporary_scripts"), file.path(folder, "r")))
+  expect_true(file.rename(
+    file.path(folder, "data"),
+    file.path(folder, "temporary_data")
+  ))
+  expect_true(file.rename(
+    file.path(folder, "temporary_data"),
+    file.path(folder, "Data")
+  ))
+  expect_true(file.rename(
+    file.path(folder, "R"),
+    file.path(folder, "temporary_scripts")
+  ))
+  expect_true(file.rename(
+    file.path(folder, "temporary_scripts"),
+    file.path(folder, "r")
+  ))
   local_workspace_mocks(folder)
   report <- workspace_report(folder)
-  expect_identical(report$result$checks[["directory.data"]]$details$kind, "case")
+  expect_identical(
+    report$result$checks[["directory.data"]]$details$kind,
+    "case"
+  )
   expect_identical(report$result$checks[["directory.R"]]$details$kind, "case")
   expect_identical(check_status(report, "directory.data/raw"), "not_checked")
 })
@@ -170,30 +249,45 @@ test_that("capitalisation is checked by directory entries even on insensitive di
 test_that("all authoritative dependencies and version constraints are retained", {
   desc <- workspace_test_desc()
   requirements <- workspace_requirements(desc)
-  expect_identical(requirements$name, c("R", "cli", "here", "usethis", "examplegithub"))
+  expect_identical(
+    requirements$name,
+    c("R", "cli", "here", "usethis", "examplegithub")
+  )
   expect_true(workspace_version_ok("3.2.0", ">=", "3.2.0"))
   expect_false(workspace_version_ok("3.1.0", ">=", "3.2.0"))
   folder <- workspace_fixture()
-  local_workspace_mocks(folder,
-    workspace_package_version = function(package) {
-      if (package == "here") stop("not installed")
-      if (package == "usethis") return("3.1.0")
-      "99.0.0"
-    })
+  local_workspace_mocks(folder, workspace_package_version = function(package) {
+    if (package == "here") {
+      stop("not installed")
+    }
+    if (package == "usethis") {
+      return("3.1.0")
+    }
+    "99.0.0"
+  })
   report <- workspace_report(folder)
   expect_identical(check_status(report, "package.here"), "problem")
   expect_identical(check_status(report, "package.usethis"), "problem")
   expect_identical(check_status(report, "package.cli"), "passed")
   expect_match(report$output, 'install.packages\\("here"\\)')
   github_action <- workspace_install_action("examplegithub", desc)
-  expect_true(any(grepl('remotes::install_github("example/examplegithub")', github_action, fixed = TRUE)))
+  expect_true(any(grepl(
+    'remotes::install_github("example/examplegithub")',
+    github_action,
+    fixed = TRUE
+  )))
 })
 
 test_that("failed default online lookup warns and later checks continue", {
   folder <- workspace_fixture()
-  local_workspace_mocks(folder, workspace_latest_r = function() stop("connection error"))
-  expect_warning(report <- workspace_report(folder), "online lookup failed or timed out",
-                 class = "learncrimemapping_update_warning")
+  local_workspace_mocks(folder, workspace_latest_r = function() {
+    stop("connection error")
+  })
+  expect_warning(
+    report <- workspace_report(folder),
+    "online lookup failed or timed out",
+    class = "learncrimemapping_update_warning"
+  )
   expect_identical(check_status(report, "r.current"), "not_checked")
   expect_match(report$output, "not a setup failure")
   expect_identical(check_status(report, "directory.R"), "passed")
@@ -203,22 +297,41 @@ test_that("failed default online lookup warns and later checks continue", {
 test_that("bounded release lookup handles current and newer releases", {
   folder <- workspace_fixture()
   local_workspace_mocks(folder, workspace_latest_r = function() "99.0.0")
-  expect_identical(check_status(workspace_report(folder, check_updates = TRUE), "r.current"), "problem")
-  local_workspace_bindings(workspace_latest_r = function() "1.0.0", .package = "learncrimemapping")
-  expect_identical(check_status(workspace_report(folder, check_updates = TRUE), "r.current"), "passed")
+  expect_identical(
+    check_status(workspace_report(folder, check_updates = TRUE), "r.current"),
+    "problem"
+  )
+  local_workspace_bindings(
+    workspace_latest_r = function() "1.0.0",
+    .package = "learncrimemapping"
+  )
+  expect_identical(
+    check_status(workspace_report(folder, check_updates = TRUE), "r.current"),
+    "passed"
+  )
 })
 
 test_that("Windows tools checks distinguish missing, detected and unavailable tools", {
   folder <- workspace_fixture()
-  local_workspace_mocks(folder, workspace_os = function() "Windows", workspace_rtools = function() FALSE)
+  local_workspace_mocks(
+    folder,
+    workspace_os = function() "Windows",
+    workspace_rtools = function() FALSE
+  )
   report <- workspace_report(folder)
   expect_identical(check_status(report, "rtools"), "problem")
   expect_false("windows.redistributable" %in% names(report$result$checks))
   expect_false(grepl("Visual C++", report$output, fixed = TRUE))
   expect_match(report$output, "matching your running R version")
-  local_workspace_bindings(workspace_rtools = function() TRUE, .package = "learncrimemapping")
+  local_workspace_bindings(
+    workspace_rtools = function() TRUE,
+    .package = "learncrimemapping"
+  )
   expect_identical(check_status(workspace_report(folder), "rtools"), "passed")
-  local_workspace_bindings(workspace_rtools = function() stop("unavailable"), .package = "learncrimemapping")
+  local_workspace_bindings(
+    workspace_rtools = function() stop("unavailable"),
+    .package = "learncrimemapping"
+  )
   expect_identical(check_status(workspace_report(folder), "rtools"), "manual")
 })
 
@@ -231,9 +344,9 @@ test_that("Air accepts empty toml and JSONC without interpreting string contents
   settings <- workspace_read_settings(file)
   expect_identical(settings$example, "https://example.org/a,}")
   expect_equal(unlist(settings$array), c(1, 2))
-  writeLines('{}', file)
+  writeLines("{}", file)
   expect_length(workspace_read_settings(file), 0L)
-  writeLines('{/* unclosed', file)
+  writeLines("{/* unclosed", file)
   expect_error(workspace_read_settings(file), "Unclosed comment")
   local_workspace_mocks(folder)
   report <- workspace_report(folder)
@@ -244,18 +357,30 @@ test_that("Air accepts empty toml and JSONC without interpreting string contents
 test_that("incorrect R-specific Air settings are problems but inheritance is manual", {
   folder <- workspace_fixture()
   file <- file.path(folder, ".vscode", "settings.json")
-  writeLines('{"editor.formatOnSave": true, "[r]": {"editor.formatOnSave": false, "editor.defaultFormatter": "other"}}', file)
+  writeLines(
+    '{"editor.formatOnSave": true, "[r]": {"editor.formatOnSave": false, "editor.defaultFormatter": "other"}}',
+    file
+  )
   local_workspace_mocks(folder)
   report <- workspace_report(folder)
   expect_identical(check_status(report, "air.format_on_save"), "problem")
   expect_identical(check_status(report, "air.formatter"), "problem")
   expect_match(report$output, "Air: Initialize Workspace Folder")
-  writeLines('{"editor.formatOnSave": false, "editor.defaultFormatter": "other"}', file)
+  writeLines(
+    '{"editor.formatOnSave": false, "editor.defaultFormatter": "other"}',
+    file
+  )
   report <- workspace_report(folder)
   expect_identical(check_status(report, "air.format_on_save"), "manual")
   expect_identical(check_status(report, "air.formatter"), "manual")
-  writeLines('{"[r][quarto]": {"editor.formatOnSave": false}, "[r]": {"editor.formatOnSave": true}}', file)
-  expect_identical(check_status(workspace_report(folder), "air.format_on_save"), "manual")
+  writeLines(
+    '{"[r][quarto]": {"editor.formatOnSave": false}, "[r]": {"editor.formatOnSave": true}}',
+    file
+  )
+  expect_identical(
+    check_status(workspace_report(folder), "air.format_on_save"),
+    "manual"
+  )
 })
 
 test_that("missing Air files, unobservable settings and missing workspace are explicit", {
@@ -274,16 +399,37 @@ test_that("missing Air files, unobservable settings and missing workspace are ex
 
 test_that("CARTO session and saved presence have distinct statuses", {
   folder <- workspace_fixture()
-  local_workspace_mocks(folder, workspace_key_present = function() FALSE,
-    workspace_saved_key = function(start_folder) list(state = "absent", path = file.path(folder, ".Renviron"), source = "user"))
+  local_workspace_mocks(
+    folder,
+    workspace_key_present = function() FALSE,
+    workspace_saved_key = function(start_folder) {
+      list(
+        state = "absent",
+        path = file.path(folder, ".Renviron"),
+        source = "user"
+      )
+    }
+  )
   report <- workspace_report(folder)
   expect_identical(check_status(report, "carto.session"), "problem")
   expect_identical(check_status(report, "carto.saved"), "problem")
   expect_match(report$output, 'edit_r_environ\\(scope = "user"\\)')
-  local_workspace_bindings(workspace_key_present = function() TRUE, .package = "learncrimemapping")
+  local_workspace_bindings(
+    workspace_key_present = function() TRUE,
+    .package = "learncrimemapping"
+  )
   expect_match(workspace_report(folder)$output, "may not survive an R restart")
-  local_workspace_bindings(workspace_key_present = function() FALSE,
-    workspace_saved_key = function(start_folder) list(state = "present", path = file.path(folder, ".Renviron"), source = "workspace"), .package = "learncrimemapping")
+  local_workspace_bindings(
+    workspace_key_present = function() FALSE,
+    workspace_saved_key = function(start_folder) {
+      list(
+        state = "present",
+        path = file.path(folder, ".Renviron"),
+        source = "workspace"
+      )
+    },
+    .package = "learncrimemapping"
+  )
   report <- workspace_report(folder)
   expect_identical(check_status(report, "carto.saved"), "problem")
   expect_match(report$output, "restart may still be needed")
@@ -294,15 +440,28 @@ test_that("actual CARTO file inspection obeys startup selection and redacts secr
   folder <- workspace_fixture()
   home <- tempfile("fake-home-")
   dir.create(home)
-  local_workspace_bindings(workspace_home = function() home, .package = "learncrimemapping")
+  local_workspace_bindings(
+    workspace_home = function() home,
+    .package = "learncrimemapping"
+  )
   withr::local_envvar(c(R_ENVIRON_USER = NA, CARTO_API_KEY = NA))
   secret <- "secret-not-to-be-displayed-0123456789"
   user_file <- file.path(home, ".Renviron")
-  writeLines(c('OTHER_SECRET="do-not-display-either"', paste0('CARTO_API_KEY="', secret, '"')), user_file)
+  writeLines(
+    c(
+      'OTHER_SECRET="do-not-display-either"',
+      paste0('CARTO_API_KEY="', secret, '"')
+    ),
+    user_file
+  )
   saved <- workspace_saved_key(folder)
   expect_identical(saved$state, "present")
   expect_identical(saved$source, "user")
-  expect_false(grepl(secret, paste(capture.output(str(saved)), collapse = ""), fixed = TRUE))
+  expect_false(grepl(
+    secret,
+    paste(capture.output(str(saved)), collapse = ""),
+    fixed = TRUE
+  ))
   local_file <- file.path(folder, ".Renviron")
   writeLines('CARTO_API_KEY=""', local_file)
   expect_identical(workspace_saved_key(folder)$state, "absent")
@@ -317,7 +476,9 @@ test_that("actual CARTO file inspection obeys startup selection and redacts secr
   # Exercise the parser's empty-value branch directly on every platform.
   real_getenv <- Sys.getenv
   empty_value_parser <- workspace_saved_key
-  environment(empty_value_parser) <- new.env(parent = environment(workspace_saved_key))
+  environment(empty_value_parser) <- new.env(
+    parent = environment(workspace_saved_key)
+  )
   environment(empty_value_parser)$Sys.getenv <- function(x, ...) {
     if (identical(x, "R_ENVIRON_USER")) "" else real_getenv(x, ...)
   }
@@ -325,11 +486,18 @@ test_that("actual CARTO file inspection obeys startup selection and redacts secr
   # Use the real saved-key parser and real presence check for the full report.
   saved_parser <- workspace_saved_key
   presence <- workspace_key_present
-  local_workspace_mocks(folder, workspace_home = function() home,
-    workspace_saved_key = saved_parser, workspace_key_present = presence)
+  local_workspace_mocks(
+    folder,
+    workspace_home = function() home,
+    workspace_saved_key = saved_parser,
+    workspace_key_present = presence
+  )
   withr::with_envvar(c(CARTO_API_KEY = secret), {
     report <- workspace_report(folder)
-    all_text <- paste(report$output, paste(capture.output(str(report$result)), collapse = "\n"))
+    all_text <- paste(
+      report$output,
+      paste(capture.output(str(report$result)), collapse = "\n")
+    )
     expect_false(grepl(secret, all_text, fixed = TRUE))
     expect_false(grepl("do-not-display-either", all_text, fixed = TRUE))
     expect_identical(check_status(report, "carto.session"), "passed")
@@ -352,11 +520,13 @@ test_that("literal startup assignments handle empty, repeated and uncertain valu
 
 test_that("tooling failures do not stop later checks or leak error text", {
   folder <- workspace_fixture()
-  local_workspace_mocks(folder,
+  local_workspace_mocks(
+    folder,
     workspace_editor = function() stop("secret-editor-error"),
     workspace_here = function() stop("secret-here-error"),
     workspace_read_settings = function(path) stop("secret-settings-error"),
-    workspace_saved_key = function(path) stop("secret-environ-error"))
+    workspace_saved_key = function(path) stop("secret-environ-error")
+  )
   report <- workspace_report(folder)
   expect_identical(check_status(report, "workspace.here"), "not_checked")
   expect_identical(check_status(report, "air.settings"), "manual")
@@ -370,14 +540,22 @@ test_that("report leaves files, directories, working directory, environment and 
   withr::local_dir(folder)
   local_workspace_mocks(folder)
   file.create(file.path(folder, "extra-student-file.txt"))
-  files <- list.files(folder, recursive = TRUE, all.files = TRUE, full.names = TRUE)
+  files <- list.files(
+    folder,
+    recursive = TRUE,
+    all.files = TRUE,
+    full.names = TRUE
+  )
   before <- tools::md5sum(files)
   env <- Sys.getenv()
   wd <- getwd()
   report <- workspace_report()
   expect_identical(getwd(), wd)
   expect_identical(Sys.getenv(), env)
-  expect_identical(list.files(folder, recursive = TRUE, all.files = TRUE, full.names = TRUE), files)
+  expect_identical(
+    list.files(folder, recursive = TRUE, all.files = TRUE, full.names = TRUE),
+    files
+  )
   expect_identical(tools::md5sum(files), before)
   expect_identical(report$result$counts[["problem"]], 0L)
 })
@@ -400,15 +578,21 @@ test_that("release transport has a five-second bound and validates responses", {
   )
   expect_identical(workspace_latest_r(), "4.6.1")
   expect_equal(timeout, 5000)
-  local_workspace_bindings(resp_body_json = function(resp, ...) list(version = "invalid"), .package = "httr2")
+  local_workspace_bindings(
+    resp_body_json = function(resp, ...) list(version = "invalid"),
+    .package = "httr2"
+  )
   expect_error(workspace_latest_r(), "Unrecognised release")
 })
 
 test_that("Positron detection uses documented indicators and defensive API calls", {
   folder <- workspace_fixture()
-  local_workspace_bindings(isAvailable = function(...) TRUE,
-    hasFun = function(...) TRUE, getActiveProject = function() folder,
-    .package = "rstudioapi")
+  local_workspace_bindings(
+    isAvailable = function(...) TRUE,
+    hasFun = function(...) TRUE,
+    getActiveProject = function() folder,
+    .package = "rstudioapi"
+  )
   withr::with_envvar(c(POSITRON = "1"), {
     editor <- workspace_editor()
     expect_true(editor$detected)
@@ -420,11 +604,23 @@ test_that("Positron detection uses documented indicators and defensive API calls
     expect_false(editor$detected)
     expect_null(editor$workspace)
   })
-  local_workspace_bindings(hasFun = function(...) FALSE, .package = "rstudioapi")
-  withr::with_envvar(c(POSITRON = "1"), expect_null(workspace_editor()$workspace))
-  local_workspace_bindings(hasFun = function(...) TRUE,
-    getActiveProject = function() stop("API unavailable"), .package = "rstudioapi")
-  withr::with_envvar(c(POSITRON = "1"), expect_null(workspace_editor()$workspace))
+  local_workspace_bindings(
+    hasFun = function(...) FALSE,
+    .package = "rstudioapi"
+  )
+  withr::with_envvar(
+    c(POSITRON = "1"),
+    expect_null(workspace_editor()$workspace)
+  )
+  local_workspace_bindings(
+    hasFun = function(...) TRUE,
+    getActiveProject = function() stop("API unavailable"),
+    .package = "rstudioapi"
+  )
+  withr::with_envvar(
+    c(POSITRON = "1"),
+    expect_null(workspace_editor()$workspace)
+  )
 })
 
 test_that("an actual cached here folder is observed without resetting it", {
@@ -436,7 +632,10 @@ test_that("an actual cached here folder is observed without resetting it", {
   local_workspace_mocks(folder, workspace_here = current_here)
   report <- workspace_report(folder)
   expect_identical(check_status(report, "workspace.here"), "problem")
-  expect_identical(report$result$checks[["workspace.here"]]$details$actual, workspace_path(original))
+  expect_identical(
+    report$result$checks[["workspace.here"]]$details$actual,
+    workspace_path(original)
+  )
   expect_identical(here::here(), original)
 })
 
@@ -447,9 +646,13 @@ test_that("directory access flags are checked without probing writes", {
   real_access <- base::file.access
   local_workspace_bindings(
     workspace_access = function(names, mode = 0) {
-      if (identical(names, file.path(folder, "output")) && mode == 2) return(-1L)
+      if (identical(names, file.path(folder, "output")) && mode == 2) {
+        return(-1L)
+      }
       real_access(names, mode)
-    }, .package = "learncrimemapping")
+    },
+    .package = "learncrimemapping"
+  )
   expect_identical(workspace_directory(folder, "output")$kind, "permission")
   expect_identical(workspace_directory(folder, "data/raw")$kind, "ok")
 })
@@ -490,11 +693,17 @@ test_that("online comparison is enabled by default and can be explicitly skipped
 
 test_that("timeouts warn without treating a failed lookup as a setup problem", {
   folder <- workspace_fixture()
-  local_workspace_mocks(folder, workspace_latest_r = function() stop("request timed out"))
-  expect_warning(report <- workspace_report(folder), "online lookup failed or timed out",
-                 class = "learncrimemapping_update_warning")
+  local_workspace_mocks(folder, workspace_latest_r = function() {
+    stop("request timed out")
+  })
+  expect_warning(
+    report <- workspace_report(folder),
+    "online lookup failed or timed out",
+    class = "learncrimemapping_update_warning"
+  )
   expect_identical(check_status(report, "r.current"), "not_checked")
-  expect_identical(report$result$counts[["problem"]], 1L) # cwd differs from supplied folder
+  # Cwd differs from supplied folder
+  expect_identical(report$result$counts[["problem"]], 1L)
   expect_false("r.current" %in% names(report$result$problems))
   expect_identical(check_status(report, "carto.session"), "passed")
 })
@@ -503,12 +712,30 @@ test_that("requested manual checks and student-facing CARTO caveats are omitted"
   folder <- workspace_fixture()
   local_workspace_mocks(folder)
   report <- workspace_report(folder)
-  expect_false(any(c("positron.current", "positron.version", "system.compatibility", "air.behaviour", "carto.startup") %in% names(report$result$checks)))
-  for (text in c("Check for Updates", "About Positron", "Help > About", "type x=1", "Only presence was checked",
-                 "Its value is never displayed or tested", "earlier start read")) {
+  expect_false(any(
+    c(
+      "positron.current",
+      "positron.version",
+      "system.compatibility",
+      "air.behaviour",
+      "carto.startup"
+    ) %in%
+      names(report$result$checks)
+  ))
+  for (text in c(
+    "Check for Updates",
+    "About Positron",
+    "Help > About",
+    "type x=1",
+    "Only presence was checked",
+    "Its value is never displayed or tested",
+    "earlier start read"
+  )) {
     expect_false(grepl(text, report$output, fixed = TRUE))
   }
-  local_workspace_bindings(workspace_saved_key = function(path) stop("unreadable"))
+  local_workspace_bindings(workspace_saved_key = function(path) {
+    stop("unreadable")
+  })
   report <- workspace_report(folder)
   expect_identical(check_status(report, "carto.saved"), "not_checked")
   expect_length(report$result$checks[["carto.saved"]]$actions, 0L)
@@ -541,31 +768,50 @@ test_that("problems and repair code are repeated at the end without changing cou
 test_that("no-problems summary does not claim unverified checks passed", {
   folder <- workspace_fixture()
   withr::local_dir(folder)
-  local_workspace_mocks(folder,
-    workspace_editor = function() list(detected = TRUE, workspace = NULL, version = NULL))
+  local_workspace_mocks(folder, workspace_editor = function() {
+    list(detected = TRUE, workspace = NULL, version = NULL)
+  })
   report <- workspace_report()
   expect_length(report$result$problems, 0L)
-  expect_match(report$output, "No problems were found by the checks that ran.", fixed = TRUE)
+  expect_match(
+    report$output,
+    "No problems were found by the checks that ran.",
+    fixed = TRUE
+  )
   expect_gt(report$result$counts[["manual"]], 0L)
 })
 
 test_that("status labels use the requested weight and colours with plain-text fallback", {
   folder <- workspace_fixture()
   withr::local_dir(folder)
-  local_workspace_mocks(folder,
-    workspace_editor = function() list(detected = TRUE, workspace = NULL, version = NULL))
+  local_workspace_mocks(folder, workspace_editor = function() {
+    list(detected = TRUE, workspace = NULL, version = NULL)
+  })
   unlink(file.path(folder, "output"), recursive = TRUE)
   withr::local_options(cli.num_colors = 256)
   report <- workspace_report()
   green_pass <- cli::make_ansi_style("green")("PASS")
-  red_problem <- cli::make_ansi_style("bold")(cli::make_ansi_style("#8B0000")("PROBLEM"))
+  red_problem <- cli::make_ansi_style("bold")(cli::make_ansi_style("#8B0000")(
+    "PROBLEM"
+  ))
   orange_manual <- cli::make_ansi_style("orange")("MANUAL CHECK")
   expect_true(grepl(green_pass, report$output, fixed = TRUE))
   expect_true(grepl(red_problem, report$output, fixed = TRUE))
   expect_true(grepl(orange_manual, report$output, fixed = TRUE))
-  expect_false(grepl(paste0("\033[1m", orange_manual), report$output, fixed = TRUE))
-  expect_false(grepl(paste0("\033[1m", green_pass), report$output, fixed = TRUE))
-  expect_false(cli::ansi_has_any(paste(capture.output(str(report$result)), collapse = "\n")))
+  expect_false(grepl(
+    paste0("\033[1m", orange_manual),
+    report$output,
+    fixed = TRUE
+  ))
+  expect_false(grepl(
+    paste0("\033[1m", green_pass),
+    report$output,
+    fixed = TRUE
+  ))
+  expect_false(cli::ansi_has_any(paste(
+    capture.output(str(report$result)),
+    collapse = "\n"
+  )))
   withr::local_options(cli.num_colors = 1)
   plain <- workspace_report()
   expect_false(cli::ansi_has_any(plain$output))
@@ -584,18 +830,30 @@ test_that("Posit Cloud's Project label is accepted without weakening local folde
   })
   folder <- workspace_fixture("Project")
   withr::local_dir(folder)
-  local_workspace_mocks(folder, workspace_cloud_folder = function(path) workspace_same_path(path, folder))
+  local_workspace_mocks(folder, workspace_cloud_folder = function(path) {
+    workspace_same_path(path, folder)
+  })
   report <- workspace_report()
   expect_identical(check_status(report, "workspace.name"), "passed")
-  expect_match(gsub("[[:space:]]+", " ", report$output), "may display it as Project", fixed = TRUE)
+  expect_match(
+    gsub("[[:space:]]+", " ", report$output),
+    "may display it as Project",
+    fixed = TRUE
+  )
   expect_false(grepl("rename it to crime_mapping", report$output, fixed = TRUE))
   unlink(file.path(folder, "output"), recursive = TRUE)
   report <- workspace_report()
-  expect_true(any(grepl("dir.create", report$result$checks[["directory.output"]]$actions, fixed = TRUE)))
+  expect_true(any(grepl(
+    "dir.create",
+    report$result$checks[["directory.output"]]$actions,
+    fixed = TRUE
+  )))
   # Cloud fallback is also identifiable when the active-workspace API and
   # local editor markers are unavailable; getwd is not presented as API proof.
   unlink(file.path(folder, ".vscode"), recursive = TRUE)
-  local_workspace_bindings(workspace_editor = function() list(detected = TRUE, workspace = NULL, version = NULL))
+  local_workspace_bindings(workspace_editor = function() {
+    list(detected = TRUE, workspace = NULL, version = NULL)
+  })
   report <- workspace_report()
   expect_true(report$result$workspace_confident)
   expect_identical(check_status(report, "workspace.active"), "manual")
@@ -623,13 +881,20 @@ test_that("Positron versions are reported only when available, with no manual lo
 test_that("final section repeats all manual checks after all problems without recounting", {
   folder <- workspace_fixture()
   withr::local_dir(folder)
-  local_workspace_mocks(folder,
-    workspace_editor = function() list(detected = TRUE, workspace = NULL, version = NULL))
-  writeLines('{}', file.path(folder, ".vscode", "settings.json"))
+  local_workspace_mocks(folder, workspace_editor = function() {
+    list(detected = TRUE, workspace = NULL, version = NULL)
+  })
+  writeLines("{}", file.path(folder, ".vscode", "settings.json"))
   unlink(file.path(folder, "output"), recursive = TRUE)
   report <- workspace_report()
-  manual <- Filter(function(check) check$status == "manual", report$result$checks)
-  expect_identical(names(manual), c("workspace.active", "air.format_on_save", "air.formatter"))
+  manual <- Filter(
+    function(check) check$status == "manual",
+    report$result$checks
+  )
+  expect_identical(
+    names(manual),
+    c("workspace.active", "air.format_on_save", "air.formatter")
+  )
   expect_identical(report$result$counts[["manual"]], 3L)
   expect_identical(report$result$counts[["problem"]], 1L)
   prose <- gsub("[[:space:]]+", " ", report$output)
@@ -643,7 +908,9 @@ test_that("final section repeats all manual checks after all problems without re
     expect_length(positions, 2L)
     expect_true(all(positions > 0L))
     expect_true(grepl(check$message, summary, fixed = TRUE))
-    for (action in check$actions) expect_true(grepl(action, summary, fixed = TRUE))
+    for (action in check$actions) {
+      expect_true(grepl(action, summary, fixed = TRUE))
+    }
   }
 })
 
@@ -651,11 +918,25 @@ test_that("introduction explains the course purpose and links to unversioned cha
   folder <- workspace_fixture()
   local_workspace_mocks(folder)
   report <- workspace_report(folder)
-  introduction <- strsplit(report$output, "R and Positron", fixed = TRUE)[[1]][[1]]
+  introduction <- strsplit(report$output, "R and Positron", fixed = TRUE)[[1]][[
+    1
+  ]]
   prose <- gsub("[[:space:]]+", " ", introduction)
-  expect_match(prose, "your computer is set up correctly for the Crime Mapping course", fixed = TRUE)
-  expect_match(prose, "https://books.lesscrime.info/learncrimemapping/setup.html", fixed = TRUE)
-  expect_match(prose, "https://books.lesscrime.info/learncrimemapping/01_getting_started/", fixed = TRUE)
+  expect_match(
+    prose,
+    "your computer is set up correctly for the Crime Mapping course",
+    fixed = TRUE
+  )
+  expect_match(
+    prose,
+    "https://books.lesscrime.info/learncrimemapping/setup.html",
+    fixed = TRUE
+  )
+  expect_match(
+    prose,
+    "https://books.lesscrime.info/learncrimemapping/01_getting_started/",
+    fixed = TRUE
+  )
   expect_false(grepl("/learncrimemapping/[0-9]{4}/", introduction))
 })
 
@@ -665,10 +946,16 @@ test_that("workspace checker suggests create_dirs only for a fresh current works
   local_workspace_mocks(folder)
   unlink(file.path(folder, c("data", "R", "output")), recursive = TRUE)
   report <- workspace_report()
-  expect_match(report$result$checks[["directory.data"]]$actions[[2]],
-               "learncrimemapping::create_dirs()", fixed = TRUE)
+  expect_match(
+    report$result$checks[["directory.data"]]$actions[[2]],
+    "learncrimemapping::create_dirs()",
+    fixed = TRUE
+  )
   dir.create(file.path(folder, "R"))
   report <- workspace_report()
-  expect_match(report$result$checks[["directory.data"]]$actions[[2]],
-               "dir.create", fixed = TRUE)
+  expect_match(
+    report$result$checks[["directory.data"]]$actions[[2]],
+    "dir.create",
+    fixed = TRUE
+  )
 })

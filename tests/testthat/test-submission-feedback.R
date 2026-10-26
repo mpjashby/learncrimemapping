@@ -1,7 +1,10 @@
 test_that("shared feedback distinguishes output from routine setup messages", {
   file <- feedback_fixture(c(
-    'message("Rows: 10 Columns: 2")', 'print("inspect this")',
-    'message("Please review this")', 'warning("careful")', 'stop("broken")'
+    'message("Rows: 10 Columns: 2")',
+    'print("inspect this")',
+    'message("Please review this")',
+    'warning("careful")',
+    'stop("broken")'
   ))
   result <- check_code_backend(file, style = FALSE)
   ids <- vapply(result$issues, `[[`, character(1), "id")
@@ -9,14 +12,25 @@ test_that("shared feedback distinguishes output from routine setup messages", {
   expect_equal(sum(ids == "runtime.text_output"), 1L)
   expect_true(all(c("runtime.warning", "runtime.error") %in% ids))
   expect_identical(result$execution$status, "error")
-  expect_equal(Filter(function(x) x$id == "runtime.error", result$issues)[[1]]$line, 5L)
+  expect_equal(
+    Filter(function(x) x$id == "runtime.error", result$issues)[[1]]$line,
+    5L
+  )
 })
 
 test_that("Quarto text and disabled chunks do not attract script output feedback", {
-  file <- feedback_fixture(c(
-    "```{r}", "#| eval: false", "install.packages('no')", "```",
-    "```{r}", 'print("required table")', "```"
-  ), ".qmd")
+  file <- feedback_fixture(
+    c(
+      "```{r}",
+      "#| eval: false",
+      "install.packages('no')",
+      "```",
+      "```{r}",
+      'print("required table")',
+      "```"
+    ),
+    ".qmd"
+  )
   result <- check_code_backend(file)
   ids <- vapply(result$issues, `[[`, character(1), "id")
   expect_identical(result$execution$status, "success")
@@ -26,37 +40,66 @@ test_that("Quarto text and disabled chunks do not attract script output feedback
 
 test_that("package installation preflight prevents side effects even without style checks", {
   marker <- tempfile()
-  file <- feedback_fixture(c(sprintf('file.create(%s)', encodeString(marker, quote = '"')),
-                              'utils::install.packages("nonexistent")'))
+  file <- feedback_fixture(c(
+    sprintf("file.create(%s)", encodeString(marker, quote = '"')),
+    'utils::install.packages("nonexistent")'
+  ))
   result <- check_code_backend(file, style = FALSE)
   expect_identical(result$execution$status, "skipped")
   expect_false(file.exists(marker))
-  expect_true(any(vapply(result$issues, function(x)
-    x$id == "course.package_install", logical(1))))
-  harmless <- feedback_fixture(c('# install.packages("x")',
-                                  'x <- "install.packages()"'))
-  expect_identical(check_code_backend(harmless, style = FALSE)$execution$status, "success")
+  expect_true(any(vapply(
+    result$issues,
+    function(x) {
+      x$id == "course.package_install"
+    },
+    logical(1)
+  )))
+  harmless <- feedback_fixture(c(
+    '# install.packages("x")',
+    'x <- "install.packages()"'
+  ))
+  expect_identical(
+    check_code_backend(harmless, style = FALSE)$execution$status,
+    "success"
+  )
 })
 
 test_that("profiles reject typos and declarations must be comments", {
   expect_error(code_feedback_profile(list(typo = TRUE)), "Unknown")
   expect_error(code_feedback_profile(list(text_output = "no")), "text_output")
   profile <- list(required_declaration = "AI declaration")
-  result <- check_code_backend(feedback_fixture('x <- "AI declaration"'),
-                               reprex = FALSE, profile = profile)
-  expect_true("course.declaration_missing" %in%
-                vapply(result$issues, `[[`, character(1), "id"))
-  result <- check_code_backend(feedback_fixture("# AI declaration"),
-                               reprex = FALSE, profile = profile)
+  result <- check_code_backend(
+    feedback_fixture('x <- "AI declaration"'),
+    reprex = FALSE,
+    profile = profile
+  )
+  expect_true(
+    "course.declaration_missing" %in%
+      vapply(result$issues, `[[`, character(1), "id")
+  )
+  result <- check_code_backend(
+    feedback_fixture("# AI declaration"),
+    reprex = FALSE,
+    profile = profile
+  )
   expect_length(result$issues, 0)
 })
 
 test_that("routine download receipts and network failures receive appropriate feedback", {
   result <- check_code_backend(feedback_fixture("x <- 1"), reprex = FALSE)
   result$execution$events <- list(
-    list(kind = "source", text = 'req_perform(path = "data/raw/file.csv")', line = 1L),
+    list(
+      kind = "source",
+      text = 'req_perform(path = "data/raw/file.csv")',
+      line = 1L
+    ),
     list(kind = "output", text = "<httr2_response>\nStatus: 200 OK", line = 1L),
-    list(kind = "error", text = "Could not resolve host: example.org", line = 2L))
+    list(
+      kind = "error",
+      text = "Could not resolve host: example.org",
+      line = 2L
+    )
+  )
   issues <- interpret_code_feedback(result)
   expect_length(issues, 1L)
   expect_identical(issues[[1L]]$id, "runtime.environment")
@@ -67,24 +110,38 @@ test_that("timeouts preserve prior output and static checks still run", {
   file <- feedback_fixture(c('cat("before")', "Sys.sleep(30)", "x=1"))
   result <- check_code_backend(file, timeout = 3)
   expect_identical(result$execution$status, "timeout")
-  expect_true("runtime.timeout" %in% vapply(result$issues, `[[`, character(1), "id"))
+  expect_true(
+    "runtime.timeout" %in% vapply(result$issues, `[[`, character(1), "id")
+  )
   expect_true("assignment_linter" %in% result$lints$linter)
-  expect_true(any(vapply(result$execution$events, function(x)
-    x$kind == "output" && grepl("before", x$text), logical(1))))
+  expect_true(any(vapply(
+    result$execution$events,
+    function(x) {
+      x$kind == "output" && grepl("before", x$text)
+    },
+    logical(1)
+  )))
 })
 
 test_that("disabled checks retain the compatible return schema without extraction", {
   file <- feedback_fixture("not valid R", ".qmd")
-  expect_warning(result <- check_code(file, reprex = FALSE, style = FALSE), "disabled")
+  expect_warning(
+    result <- check_code(file, reprex = FALSE, style = FALSE),
+    "disabled"
+  )
   expect_identical(result$execution$status, "skipped")
   expect_null(result$report)
   expect_length(result$issues, 0L)
 })
 
 test_that("HTML escapes student text and embeds plots without external dependencies", {
-  result <- check_code_backend(feedback_fixture(c(
-    'cat("<script>alert(1)</script>")', 'plot(1:3)'
-  )), style = FALSE)
+  result <- check_code_backend(
+    feedback_fixture(c(
+      'cat("<script>alert(1)</script>")',
+      "plot(1:3)"
+    )),
+    style = FALSE
+  )
   file <- tempfile(fileext = ".html")
   write_code_feedback(result, file, participant = "Participant_1")
   html <- paste(readLines(file), collapse = "\n")
@@ -97,26 +154,59 @@ test_that("HTML escapes student text and embeds plots without external dependenc
   expect_match(html, "Submitted file name:", fixed = TRUE)
   expect_match(html, "Submitted file type: R script", fixed = TRUE)
   expect_false(grepl("Execution: <strong>", html, fixed = TRUE))
-  expect_match(html, "Code free of syntax errors: <span role='img' aria-label='Passed'>✅", fixed = TRUE)
-  expect_match(html, "Code free of runtime errors: <span role='img' aria-label='Passed'>✅", fixed = TRUE)
+  expect_match(
+    html,
+    "Code free of syntax errors: <span role='img' aria-label='Passed'>✅",
+    fixed = TRUE
+  )
+  expect_match(
+    html,
+    "Code free of runtime errors: <span role='img' aria-label='Passed'>✅",
+    fixed = TRUE
+  )
   expect_false(grepl("Submission requirement problem", html, fixed = TRUE))
   expect_match(html, "syntax-function", fixed = TRUE)
   expect_match(html, "Visualisations produced by your code", fixed = TRUE)
-  expect_lt(regexpr("<h2>Submitted code", html, fixed = TRUE)[1],
-             regexpr("<h2>Visualisations", html, fixed = TRUE)[1])
+  expect_lt(
+    regexpr("<h2>Submitted code", html, fixed = TRUE)[1],
+    regexpr("<h2>Visualisations", html, fixed = TRUE)[1]
+  )
 })
 
 test_that("initial checks distinguish parse failures, runtime errors and skipped execution", {
   invalid <- check_code_backend(feedback_fixture("x <- ("))
   expect_identical(invalid$syntax$status, "error")
   html <- feedback_initial_checks(invalid)
-  expect_match(html, "Code free of syntax errors</a>: <span role='img' aria-label='Problem found'>❌", fixed = TRUE)
-  expect_match(html, "Code free of runtime errors: <span role='img' aria-label='Check incomplete'>⚪</span> Not checked (syntax error)", fixed = TRUE)
-  runtime <- check_code_backend(feedback_fixture('stop("broken")'), style = FALSE)
-  expect_match(feedback_initial_checks(runtime), "Code free of syntax errors: <span role='img' aria-label='Passed'>✅", fixed = TRUE)
-  expect_match(feedback_initial_checks(runtime), "Code free of runtime errors: <span role='img' aria-label='Problem found'>❌", fixed = TRUE)
+  expect_match(
+    html,
+    "Code free of syntax errors</a>: <span role='img' aria-label='Problem found'>❌",
+    fixed = TRUE
+  )
+  expect_match(
+    html,
+    "Code free of runtime errors: <span role='img' aria-label='Check incomplete'>⚪</span> Not checked (syntax error)",
+    fixed = TRUE
+  )
+  runtime <- check_code_backend(
+    feedback_fixture('stop("broken")'),
+    style = FALSE
+  )
+  expect_match(
+    feedback_initial_checks(runtime),
+    "Code free of syntax errors: <span role='img' aria-label='Passed'>✅",
+    fixed = TRUE
+  )
+  expect_match(
+    feedback_initial_checks(runtime),
+    "Code free of runtime errors: <span role='img' aria-label='Problem found'>❌",
+    fixed = TRUE
+  )
   skipped <- check_code_backend(feedback_fixture("x <- 1"), reprex = FALSE)
-  expect_match(feedback_initial_checks(skipped), "Code free of runtime errors: <span role='img' aria-label='Check incomplete'>⚪</span> Full check not possible – check for errors below", fixed = TRUE)
+  expect_match(
+    feedback_initial_checks(skipped),
+    "Code free of runtime errors: <span role='img' aria-label='Check incomplete'>⚪</span> Full check not possible – check for errors below",
+    fixed = TRUE
+  )
 })
 
 test_that("submitted code preserves original content and safely handles invalid syntax", {
@@ -128,10 +218,23 @@ test_that("submitted code preserves original content and safely handles invalid 
   expect_match(html, "syntax-number", fixed = TRUE)
   expect_match(html, "\tprint(x)", fixed = TRUE)
   expect_false(grepl("CHANGED AFTER CHECKING", html, fixed = TRUE))
-  invalid <- check_code_backend(feedback_fixture('x <- "<script>'), reprex = FALSE)
+  invalid <- check_code_backend(
+    feedback_fixture('x <- "<script>'),
+    reprex = FALSE
+  )
   expect_match(feedback_submitted_code(invalid), "&lt;script&gt;", fixed = TRUE)
-  quarto <- check_code_backend(feedback_fixture(c(
-    "# My report", "```{r}", "x <- 1", "```"), ".qmd"), reprex = FALSE)
+  quarto <- check_code_backend(
+    feedback_fixture(
+      c(
+        "# My report",
+        "```{r}",
+        "x <- 1",
+        "```"
+      ),
+      ".qmd"
+    ),
+    reprex = FALSE
+  )
   expect_match(feedback_submitted_code(quarto), "# My report", fixed = TRUE)
   expect_match(feedback_submitted_code(quarto), "syntax-number", fixed = TRUE)
   expect_identical(feedback_file_type(quarto$file), "Quarto file")
@@ -140,7 +243,10 @@ test_that("submitted code preserves original content and safely handles invalid 
 test_that("batch workspace roots are isolated and feedback matches the backend", {
   zip <- feedback_zip(list(
     "Participant_1_assignsubmission_file/exercise.R" = c(
-      'root <- here::here()', 'writeLines(root, "outputs/root.txt")', 'x=1'),
+      "root <- here::here()",
+      'writeLines(root, "output/root.txt")',
+      "x=1"
+    ),
     "Participant_2_assignsubmission_file/exercise.R" = 'stop("student error")'
   ))
   output <- tempfile("batch-")
@@ -157,9 +263,11 @@ test_that("batch workspace roots are isolated and feedback matches the backend",
   expect_false(dir.exists(file.path(output, "workspaces")))
   before <- tools::md5sum(file.path(output, batch$manifest$report))
   resumed <- suppressWarnings(check_submissions(zip, output, backend = "local"))
-  expect_identical(tools::md5sum(file.path(output, batch$manifest$report)), before)
+  expect_identical(
+    tools::md5sum(file.path(output, batch$manifest$report)),
+    before
+  )
   expect_equal(resumed$manifest, batch$manifest)
-
 })
 
 test_that("invalid submissions receive reports while valid submissions continue", {
@@ -173,17 +281,33 @@ test_that("invalid submissions receive reports while valid submissions continue"
   output <- tempfile("batch-invalid-")
   batch <- check_submissions(zip, output, backend = "local", reprex = FALSE)
   expect_equal(nrow(batch$manifest), 4L)
-  expect_equal(sum(vapply(batch$results, function(x)
-    any(vapply(x$issues, function(i) i$id == "submission.invalid", logical(1))),
-    logical(1))), 3L)
+  expect_equal(
+    sum(vapply(
+      batch$results,
+      function(x) {
+        any(vapply(
+          x$issues,
+          function(i) i$id == "submission.invalid",
+          logical(1)
+        ))
+      },
+      logical(1)
+    )),
+    3L
+  )
   expect_length(batch$results$Participant_4$issues, 0)
   expect_true(all(file.exists(file.path(output, batch$manifest$report))))
 })
 
 test_that("nested archives are rejected before output creation", {
-  zip <- feedback_zip(list("Participant_1_assignsubmission_file/nested/code.R" = "1"))
+  zip <- feedback_zip(list(
+    "Participant_1_assignsubmission_file/nested/code.R" = "1"
+  ))
   output <- tempfile()
-  expect_error(suppressWarnings(check_submissions(zip, output, backend = "local")), "Nested")
+  expect_error(
+    suppressWarnings(check_submissions(zip, output, backend = "local")),
+    "Nested"
+  )
   expect_false(dir.exists(output))
   template <- tempfile()
   dir.create(template)
@@ -196,34 +320,67 @@ test_that("binary ZIP submissions get an explicit error report without aborting 
     "Participant_1_assignsubmission_file/submission.zip" = as.raw(0:255),
     "Participant_2_assignsubmission_file/submission.R" = "x <- 1"
   ))
-  batch <- check_submissions(zip, tempfile("binary-batch-"), backend = "local", reprex = FALSE)
+  batch <- check_submissions(
+    zip,
+    tempfile("binary-batch-"),
+    backend = "local",
+    reprex = FALSE
+  )
   expect_equal(nrow(batch$manifest), 2L)
   invalid <- batch$results$Participant_1
   expect_identical(invalid$execution$status, "skipped")
-  expect_match(invalid$issues[[1]]$message,
-               "The submitted file could not be checked because it is a ZIP archive.", fixed = TRUE)
+  expect_match(
+    invalid$issues[[1]]$message,
+    "The submitted file could not be checked because it is a ZIP archive.",
+    fixed = TRUE
+  )
   html <- paste(readLines(invalid$html_report), collapse = "\n")
   expect_match(html, "The submitted file could not be checked", fixed = TRUE)
-  expect_false(grepl("aria-label='Passed'", feedback_initial_checks(invalid), fixed = TRUE))
+  expect_false(grepl(
+    "aria-label='Passed'",
+    feedback_initial_checks(invalid),
+    fixed = TRUE
+  ))
   expect_length(batch$results$Participant_2$issues, 0L)
 })
 
 test_that("course package loading requires one p_load call or namespace-qualified functions", {
-  ids <- function(code) vapply(check_code_backend(feedback_fixture(code),
-    reprex = FALSE)$issues, `[[`, character(1), "id")
+  ids <- function(code) {
+    vapply(
+      check_code_backend(feedback_fixture(code), reprex = FALSE)$issues,
+      `[[`,
+      character(1),
+      "id"
+    )
+  }
   expect_false("course.package_loading" %in% ids("pacman::p_load(sf, raster)"))
   expect_false("course.package_loading" %in% ids("x <- base::sum(1, 2)"))
   expect_true("course.package_loading" %in% ids("library(raster)"))
-  mixed <- check_code_backend(feedback_fixture(c(
-    "pacman::p_load(sf)", "library(raster)")), reprex = FALSE)
+  mixed <- check_code_backend(
+    feedback_fixture(c(
+      "pacman::p_load(sf)",
+      "library(raster)"
+    )),
+    reprex = FALSE
+  )
   loading <- Filter(function(i) i$id == "course.package_loading", mixed$issues)
   expect_length(loading, 1L)
   expect_identical(loading[[1]]$line, 2L)
   expect_false("library_call_linter" %in% mixed$lints$linter)
-  expect_true("course.package_loading" %in% ids(c(
-    "pacman::p_load(sf)", "pacman::p_load(raster)")))
-  expect_false("course.package_loading" %in% ids(c(
-    "# library(raster)", 'x <- "library(raster)"')))
+  expect_true(
+    "course.package_loading" %in%
+      ids(c(
+        "pacman::p_load(sf)",
+        "pacman::p_load(raster)"
+      ))
+  )
+  expect_false(
+    "course.package_loading" %in%
+      ids(c(
+        "# library(raster)",
+        'x <- "library(raster)"'
+      ))
+  )
 })
 
 
@@ -240,19 +397,38 @@ test_that("batches resume by report ID and preserve existing instructor files", 
   existing <- file.path(output, "feedback", "Participant_2.html")
   writeLines("Existing reviewed report", existing)
   before <- tools::md5sum(c(existing, rubric))
-  batch <- suppressWarnings(check_submissions(zip, output, backend = "local", style = FALSE))
+  batch <- suppressWarnings(check_submissions(
+    zip,
+    output,
+    backend = "local",
+    style = FALSE
+  ))
   expect_identical(tools::md5sum(c(existing, rubric)), before)
-  expect_setequal(batch$manifest$participant, c("Participant_1", "Participant_2"))
+  expect_setequal(
+    batch$manifest$participant,
+    c("Participant_1", "Participant_2")
+  )
   expect_null(batch$results$Participant_2)
-  html <- paste(readLines(batch$results$Participant_1$html_report), collapse = "\n")
+  html <- paste(
+    readLines(batch$results$Participant_1$html_report),
+    collapse = "\n"
+  )
   expect_match(html, "data:image/png;base64,", fixed = TRUE)
   expect_match(html, "plot", fixed = TRUE)
   expect_false(file.exists(batch$results$Participant_1$file))
   expect_false(dir.exists(batch$results$Participant_1$execution_dir))
-  expect_length(list.files(output, pattern = "^\\.submission-batch-", all.files = TRUE), 0L)
+  expect_length(
+    list.files(output, pattern = "^\\.submission-batch-", all.files = TRUE),
+    0L
+  )
   # Missing reports are regenerated even when their saved result is present.
   unlink(batch$results$Participant_1$html_report)
-  resumed <- suppressWarnings(check_submissions(zip, output, backend = "local", style = FALSE))
+  resumed <- suppressWarnings(check_submissions(
+    zip,
+    output,
+    backend = "local",
+    style = FALSE
+  ))
   expect_true(file.exists(resumed$results$Participant_1$html_report))
   expect_identical(tools::md5sum(c(existing, rubric)), before)
   # A completed Docker batch does not need Docker to be available again.
@@ -268,24 +444,40 @@ test_that("an interrupted batch retains reports and resumes only unfinished part
   interrupted <- check_submissions
   environment(interrupted) <- new.env(parent = environment(check_submissions))
   writer <- write_code_feedback
-  environment(interrupted)$write_code_feedback <- function(result, file, participant) {
-    if (participant == "Participant_2") stop("Interrupted report generation")
+  environment(interrupted)$write_code_feedback <- function(
+    result,
+    file,
+    participant
+  ) {
+    if (participant == "Participant_2") {
+      stop("Interrupted report generation")
+    }
     writer(result, file, participant)
   }
-  expect_error(interrupted(zip, output, backend = "local", reprex = FALSE),
-               "Interrupted report generation")
+  expect_error(
+    interrupted(zip, output, backend = "local", reprex = FALSE),
+    "Interrupted report generation"
+  )
   first <- file.path(output, "feedback", "Participant_1.html")
   before <- tools::md5sum(first)
   saved <- readRDS(file.path(output, "results.rds"))
   expect_false(file.exists(saved$Participant_1$file))
   expect_false(dir.exists(saved$Participant_1$execution_dir))
-  expect_length(list.files(output, pattern = "^\\.submission-batch-", all.files = TRUE), 0L)
+  expect_length(
+    list.files(output, pattern = "^\\.submission-batch-", all.files = TRUE),
+    0L
+  )
   resumed <- check_submissions(zip, output, backend = "local", reprex = FALSE)
   expect_identical(tools::md5sum(first), before)
   expect_equal(nrow(resumed$manifest), 2L)
   expect_true(all(file.exists(file.path(output, resumed$manifest$report))))
   upload <- tempfile("upload-")
   feedback <- tempfile(fileext = ".zip")
-  listing <- suppressMessages(package_moodle_feedback(zip, output, upload, feedback))
+  listing <- suppressMessages(package_moodle_feedback(
+    zip,
+    output,
+    upload,
+    feedback
+  ))
   expect_equal(nrow(listing), 2L)
 })

@@ -14,6 +14,7 @@
 #' }
 #' @export
 create_dirs <- function() {
+  # Check the actual directory spelling, including on case-insensitive systems.
   folder <- getwd()
   if (!identical(workspace_actual_name(folder), "crime_mapping")) {
     cli::cli_abort(c(
@@ -22,8 +23,11 @@ create_dirs <- function() {
       "i" = "Open crime_mapping in Positron and restart R before running create_dirs()."
     ))
   }
+  # List parents before children so each directory can be created in order.
   directories <- c("data", "data/raw", "data/processed", "R", "output")
   paths <- file.path(folder, directories)
+  # Validate every target before making changes to avoid a partial setup when
+  # an existing file or directory would prevent creation.
   existing <- directories[file.exists(paths) | dir.exists(paths)]
   if (length(existing)) {
     cli::cli_abort(c(
@@ -33,9 +37,14 @@ create_dirs <- function() {
   }
   for (path in paths) {
     if (!dir.create(path)) {
-      cli::cli_abort("Could not create {.file {path}}. Check folder permissions before trying again.")
+      cli::cli_abort(
+        "Could not create {.file {path}}. Check folder permissions before trying again."
+      )
     }
   }
-  cli::cli_alert_success("Created data/raw, data/processed, R and output in {.file {folder}}.")
+  cli::cli_alert_success(
+    "Created data/raw, data/processed, R and output in {.file {folder}}."
+  )
+  # Return paths for callers while keeping the student console output concise.
   invisible(paths)
 }

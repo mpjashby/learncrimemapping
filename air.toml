@@ -1,0 +1,12 @@
+[format]
+line-width = 80
+indent-width = 2
+
+# These examples intentionally contain errors and style violations.
+# Container helper copies and package check outputs are generated from source.
+exclude = [
+  "/tests/manual-feedback/r/",
+  "/tests/manual-feedback/quarto/",
+  "/inst/container/R/",
+  "/check/",
+]

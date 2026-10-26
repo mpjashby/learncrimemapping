@@ -121,6 +121,18 @@ If students need files supplied with the exercise, add
 example with the folder containing those files. The checker copies its contents
 into each student's working folder.
 
+Before running each submission, the checker creates `data/raw`, `data/processed`
+and `output` in that student's workspace, after copying exercise resources.
+This applies to both Docker and local checking. Existing directories and their
+contents are preserved. To replace the defaults, supply, for example,
+`workspace_dirs = c("data/raw", "data/processed", "output", "figures")`.
+Use `workspace_dirs = character()` to disable automatic directory creation.
+Paths must be relative to the workspace and must not contain parent traversal,
+hidden directories or reserved checker paths. A conflicting file or failure to
+create a directory is reported as a checker setup error before code runs.
+The previously created `outputs` and `scripts` directories are no longer defaults;
+include them explicitly in `workspace_dirs` if an exercise requires them.
+
 The results directory contains:
 
 | Path | Purpose |
@@ -152,7 +164,7 @@ batch <- learncrimemapping:::check_submissions(
   zip = submission_zip,
   output_dir = run_dir,
   profile = profile,
-  saved_files = c("outputs/final_map.pdf", "figures/*.png")
+  saved_files = c("output/final_map.pdf", "figures/*.png")
 )
 ```
 

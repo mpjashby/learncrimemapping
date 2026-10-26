@@ -6,8 +6,10 @@ test_that("create_dirs creates the complete workspace and refuses repeats", {
   dir.create(workspace)
   withr::local_dir(workspace)
   expect_message(paths <- create_dirs(), "Created")
-  expect_true(all(dir.exists(file.path(workspace,
-    c("data", "data/raw", "data/processed", "R", "output")))))
+  expect_true(all(dir.exists(file.path(
+    workspace,
+    c("data", "data/raw", "data/processed", "R", "output")
+  ))))
   expect_length(paths, 5L)
   writeLines("keep", "data/raw/student.csv")
   expect_error(create_dirs(), "already exist")
@@ -35,4 +37,3 @@ test_that("create_dirs checks the folder name and all existing paths before writ
     unlink(path, recursive = TRUE)
   }
 })
-
